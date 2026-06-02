@@ -14,7 +14,7 @@
     body {
       margin: 0;
       padding: 0;
-      overflow: hidden; /* Prevents layout shifts from triggering false flags */
+      overflow: hidden; /* Stops layout shifts from creating false positives */
       background: #F8FAFC;
     }
     img, canvas, svg {
@@ -22,7 +22,6 @@
       user-drag: none;
       -webkit-user-drag: none;
     }
-    /* Simple reset for the container iframe */
     #protected-iframe {
       width: 100vw;
       height: 100vh;
@@ -30,7 +29,6 @@
       display: block;
     }
   </style>
-  
 </head>
 <body>
 
@@ -39,13 +37,6 @@
   <script>
     // ==================== CONFIGURATION & DOMAIN LOCK ====================
     const allowedDomains = ['ownfintrack.netlify.app', 'www.ownfintrack.netlify.app', 'localhost'];
-
-    // ==================== LAYER 3: HEAVILY ENCODED CONTENT ====================
-    const layer3 = "PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KPGhlYWQ+CiAgPG1ldGEgY2hhcnNldD0iVVRGLTgiLz4KICA8bWV0YSBuYW1lPSJ2aWV3cG9ydCIgY29udGVudD0id2lkdGg9ZGV2aWNlLXdpZHRoLCBpbml0aWFsLXNjYWxlPTEuMCwgdmlld3BvcnQtZml0PWNvdmVyIi8+CiAgPG1ldGEgbmFtZT0ibW9iaWxlLXdlYi1hcHAtY2FwYWJsZSIgY29udGVudD0ieWVzIi8+CiAgPG1ldGEgbmFtZT0iYXBwbGUtbW9iaWxlLXdlYi1hcHAtY2FwYWJsZSIgY29udGVudD0ieWVzIi8+CiAgPHRpdGxlPlBlcnNvbmFsIEZpbmFuY2UgVHJhY2tlcjwvdGl0bGU+CiAgPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2RuanMuY2xvdWRmbGFyZS5jb20vYWpheC9saWJzL3JlYWN0LzE4LjIuMC91bWQvcmVhY3QucHJvZHVjdGlvbi5taW4uanMiPjwvc2NyaXB0PgogIDxzY3JpcHQgc3JjPSJodHRwczovL2Nkbi5qc2RlbGl2ci5uZXQvbnBtL3JlYWN0LWRvbUAxOC4yLjAvdW1kL3JlYWN0LWRvbS5wcm9kdWN0aW9uLm1pbi5qcyI+PC9zY3JpcHQ+CiAgPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2RuanMuY2xvdWRmbGFyZS5jb20vYWpheC9saWJzL2JhYmVsLXN0YW5kYWxvbmUvNy4yMy4yL2JhYmVsLm1pbi5qcyI+PC9zY3JpcHQ+CiAgPHN0eWxlPgogICAgKntib3gtc2l6aW5nOmJvcmRlci1ib3g7LXdlYmtpdC10YXAtaGlnaGxpZ2h0LWNvbG9yOnRyYW5zcGFyZW50O30KICAgIGJvZHl7bWFyZ2luOjA7cGFkZGluZzowO2JhY2tncm91bmQ6I0Y4RkFGQztmb250LWZhbWlseTpzeXN0ZW0tdWksLWFwcGxlLXN5c3RlbSxCbGlua01hY1N5c3RlbUZvbnQsJ1NlZ29lIFVJJyxzYW5zLXNlcmlmO30KICAgIGlucHV0W3R5cGU9cmFuZ2Vdey13ZWJraXQtdGFwLWhpZ2hsaWdodC1jb2xvcjp0cmFuc3BhcmVudDt9CiAg</style>\n</head>\n<body>\n<div id=\"root\"></div>\n<script type=\"text/babel\">\n// Your React app parses inside here\n<\/script>\n</body>\n</html>";
-
-    function decodeLayer3(str) {
-      return decodeURIComponent(atob(str));
-    }
 
     // ==================== NON-DESTRUCTIVE PROTECTION OVERLAY ====================
     const overlay = document.createElement('div');
@@ -80,23 +71,37 @@
     function loadContent() {
       if (!checkDomain()) return;
       try {
-        let html = decodeLayer3(layer3);
+        // Fallback placeholder safely handled directly within the document tree
+        const appSource = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"><\/script>
+            <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"><\/script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"><\/script>
+          </head>
+          <body>
+            <div id="root"></div>
+            <script type="text/babel">
+              // Your React code runs completely safe inside this container environment
+            <\/script>
+          </body>
+          </html>`;
+
         const iframe = document.getElementById('protected-iframe');
-        
-        // Write the full sub-document inside the iframe to prevent layout breaking
         iframe.contentWindow.document.open();
-        iframe.contentWindow.document.write(html);
+        iframe.contentWindow.document.write(appSource);
         iframe.contentWindow.document.close();
         
-        // Pass UI protections inside the iframe window environment too
+        // Pass protections deep inside the iframe context
         applyUIBlocks(iframe.contentWindow.document);
       } catch(e) {
-        toggleOverlay(true, "Decryption failed");
+        toggleOverlay(true, "Application Initialization Failed");
       }
     }
 
     function applyUIBlocks(targetDoc) {
-      // LAYER 1: Basic UI blocks applied to document context
+      // LAYER 1: Comprehensive UI Event Blocks
       targetDoc.addEventListener('contextmenu', e => e.preventDefault());
       
       targetDoc.addEventListener('keydown', e => {
@@ -114,10 +119,9 @@
     function activateMultiLayerProtection() {
       if (!checkDomain()) return;
 
-      // Apply protections to top-level index page context
       applyUIBlocks(document);
 
-      // LAYER 2: DevTools Live Monitoring Switch (Toggles curtain on size shifts)
+      // LAYER 2: DevTools Size Monitoring Toggles (No page destruction)
       setInterval(() => {
         if (!checkDomain()) return;
 
@@ -128,16 +132,15 @@
         if (widthDiff > threshold || heightDiff > threshold) {
           toggleOverlay(true, "Developer tools detected");
         } else {
-          toggleOverlay(false);
+          toggleOverlay(false); // Seamlessly drops the black overlay window when DevTools is closed
         }
       }, 350);
 
-      // LAYER 3 & CONSOLE: Console spam protection
+      // LAYER 3 & CONSOLE: Active Spam Clears
       console.clear();
       console.log("%c🔐 OwnFinTrack Protected v2.5 - Multiple Encryption Layers Active", "color:#7c3aed;font-size:14px;font-weight:bold");
     }
 
-    // Final Initialization
     window.addEventListener('load', () => {
       loadContent();
       activateMultiLayerProtection();
