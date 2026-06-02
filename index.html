@@ -14,7 +14,7 @@
     body {
       margin: 0;
       padding: 0;
-      overflow-x: hidden;
+      overflow: hidden; /* Prevents layout shifts from triggering false flags */
       background: #F8FAFC;
     }
     img, canvas, svg {
@@ -22,26 +22,31 @@
       user-drag: none;
       -webkit-user-drag: none;
     }
+    /* Simple reset for the container iframe */
+    #protected-iframe {
+      width: 100vw;
+      height: 100vh;
+      border: none;
+      display: block;
+    }
   </style>
 </head>
 <body>
 
-  <div id="protected-content" style="min-height:100vh"></div>
+  <iframe id="protected-iframe"></iframe>
 
   <script>
     // ==================== CONFIGURATION & DOMAIN LOCK ====================
     const allowedDomains = ['ownfintrack.netlify.app', 'www.ownfintrack.netlify.app', 'localhost'];
 
     // ==================== LAYER 3: HEAVILY ENCODED CONTENT ====================
-    // This uses your exact original triple-encoded Base64 string
-    const layer3 = "PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KPGhlYWQ+CiAgPG1ldGEgY2hhcnNldD0iVVRGLTgiLz4KICA8bWV0YSBuYW1lPSJ2aWV3cG9ydCIgY29udGVudD0id2lkdGg9ZGV2aWNlLXdpZHRoLCBpbml0aWFsLXNjYWxlPTEuMCwgdmlld3BvcnQtZml0PWNvdmVyIi8+CiAgPG1ldGEgbmFtZT0ibW9iaWxlLXdlYi1hcHAtY2FwYWJsZSIgY29udGVudD0ieWVzIi8+CiAgPG1ldGEgbmFtZT0iYXBwbGUtbW9iaWxlLXdlYi1hcHAtY2FwYWJsZSIgY29udGVudD0ieWVzIi8+CiAgPHRpdGxlPlBlcnNvbmFsIEZpbmFuY2UgVHJhY2tlcjwvdGl0bGU+CiAgPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2RuanMuY2xvdWRmbGFyZS5jb20vYWpheC9saWJzL3JlYWN0LzE4LjIuMC91bWQvcmVhY3QucHJvZHVjdGlvbi5taW4uanMiPjwvc2NyaXB0PgogIDxzY3JpcHQgc3JjPSJodHRwczovL2Nkbi5qc2RlbGl2ci5uZXQvbnBtL3JlYWN0LWRvbUAxOC4yLjAvdW1kL3JlYWN0LWRvbS5wcm9kdWN0aW9uLm1pbi5qcyI+PC9zY3JpcHQ+CiAgPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2RuanMuY2xvdWRmbGFyZS5jb20vYWpheC9saWJzL2JhYmVsLXN0YW5kYWxvbmUvNy4yMy4yL2JhYmVsLm1pbi5qcyI+PC9zY3JpcHQ+CiAgPHN0eWxlPgogICAgKntib3gtc2l6aW5nOmJvcmRlci1ib3g7LXdlYmtpdC10YXAtaGlnaGxpZ2h0LWNvbG9yOnRyYW5zcGFyZW50O30KICAgIGJvZHl7bWFyZ2luOjA7cGFkZGluZzowO2JhY2tncm91bmQ6I0Y4RkFGQztmb250LWZhbWlseTpzeXN0ZW0tdWksLWFwcGxlLXN5c3RlbSxCbGlua01hY1N5c3RlbUZvbnQsJ1NlZ29lIFVJJyxzYW5zLXNlcmlmO30KICAgIGlucHV0W3R5cGU9cmFuZ2Vdey13ZWJraXQtdGFwLWhpZ2hsaWdodC1jb2xvcjp0cmFuc3BhcmVudDt9CiAgPC9zdHlsZT4KPC9oZWFkPgo8Ym9keT4KPGRpdiBpZD0icm9vdCI+PC9kaXY+CjxzY3JpcHQgdHlwZT0idGV4dC9iYWJlbCI+Ci8vIFtZb3VyIGZ1bGwgY29kZSBpcyBoZXJlIC0gYmFzZTY0IGVuY29kZWRdCjwvc2NyaXB0Pgo8L2JvZHk+PC9odG1sPg==";
+    const layer3 = "PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KPGhlYWQ+CiAgPG1ldGEgY2hhcnNldD0iVVRGLTgiLz4KICA8bWV0YSBuYW1lPSJ2aWV3cG9ydCIgY29udGVudD0id2lkdGg9ZGV2aWNlLXdpZHRoLCBpbml0aWFsLXNjYWxlPTEuMCwgdmlld3BvcnQtZml0PWNvdmVyIi8+CiAgPG1ldGEgbmFtZT0ibW9iaWxlLXdlYi1hcHAtY2FwYWJsZSIgY29udGVudD0ieWVzIi8+CiAgPG1ldGEgbmFtZT0iYXBwbGUtbW9iaWxlLXdlYi1hcHAtY2FwYWJsZSIgY29udGVudD0ieWVzIi8+CiAgPHRpdGxlPlBlcnNvbmFsIEZpbmFuY2UgVHJhY2tlcjwvdGl0bGU+CiAgPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2RuanMuY2xvdWRmbGFyZS5jb20vYWpheC9saWJzL3JlYWN0LzE4LjIuMC91bWQvcmVhY3QucHJvZHVjdGlvbi5taW4uanMiPjwvc2NyaXB0PgogIDxzY3JpcHQgc3JjPSJodHRwczovL2Nkbi5qc2RlbGl2ci5uZXQvbnBtL3JlYWN0LWRvbUAxOC4yLjAvdW1kL3JlYWN0LWRvbS5wcm9kdWN0aW9uLm1pbi5qcyI+PC9zY3JpcHQ+CiAgPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2RuanMuY2xvdWRmbGFyZS5jb20vYWpheC9saWJzL2JhYmVsLXN0YW5kYWxvbmUvNy4yMy4yL2JhYmVsLm1pbi5qcyI+PC9zY3JpcHQ+CiAgPHN0eWxlPgogICAgKntib3gtc2l6aW5nOmJvcmRlci1ib3g7LXdlYmtpdC10YXAtaGlnaGxpZ2h0LWNvbG9yOnRyYW5zcGFyZW50O30KICAgIGJvZHl7bWFyZ2luOjA7cGFkZGluZzowO2JhY2tncm91bmQ6I0Y4RkFGQztmb250LWZhbWlseTpzeXN0ZW0tdWksLWFwcGxlLXN5c3RlbSxCbGlua01hY1N5c3RlbUZvbnQsJ1NlZ29lIFVJJyxzYW5zLXNlcmlmO30KICAgIGlucHV0W3R5cGU9cmFuZ2Vdey13ZWJraXQtdGFwLWhpZ2hsaWdodC1jb2xvcjp0cmFuc3BhcmVudDt9CiAg</style>\n</head>\n<body>\n<div id=\"root\"></div>\n<script type=\"text/babel\">\n// Your React app parses inside here\n<\/script>\n</body>\n</html>";
 
     function decodeLayer3(str) {
       return decodeURIComponent(atob(str));
     }
 
-    // ==================== NEW NON-DESTRUCTIVE PROTECTION OVERLAY ====================
-    // Dynamically injects a hidden curtain layer instead of overwriting innerHTML
+    // ==================== NON-DESTRUCTIVE PROTECTION OVERLAY ====================
     const overlay = document.createElement('div');
     overlay.id = 'protection-overlay';
     overlay.innerHTML = `
@@ -75,47 +80,60 @@
       if (!checkDomain()) return;
       try {
         let html = decodeLayer3(layer3);
-        document.getElementById('protected-content').innerHTML = html;
+        const iframe = document.getElementById('protected-iframe');
+        
+        // Write the full sub-document inside the iframe to prevent layout breaking
+        iframe.contentWindow.document.open();
+        iframe.contentWindow.document.write(html);
+        iframe.contentWindow.document.close();
+        
+        // Pass UI protections inside the iframe window environment too
+        applyUIBlocks(iframe.contentWindow.document);
       } catch(e) {
         toggleOverlay(true, "Decryption failed");
       }
     }
 
-    // ==================== MULTI-LAYER PROTECTION SETUP ====================
-    function activateMultiLayerProtection() {
-      if (!checkDomain()) return;
-
-      // LAYER 1: Basic UI blocks
-      document.addEventListener('contextmenu', e => e.preventDefault());
+    function applyUIBlocks(targetDoc) {
+      // LAYER 1: Basic UI blocks applied to document context
+      targetDoc.addEventListener('contextmenu', e => e.preventDefault());
       
-      document.addEventListener('keydown', e => {
+      targetDoc.addEventListener('keydown', e => {
         const blocked = ['F12', 'u', 's', 'i', 'c', 'a', 'p'];
         if (e.ctrlKey && blocked.includes(e.key.toLowerCase())) e.preventDefault();
         if (e.key === 'F12' || (e.ctrlKey && e.shiftKey)) e.preventDefault();
       });
 
       ['selectstart', 'copy', 'cut', 'dragstart'].forEach(ev => {
-        document.addEventListener(ev, e => e.preventDefault());
+        targetDoc.addEventListener(ev, e => e.preventDefault());
       });
+    }
 
-      // LAYER 2: DevTools Live Monitoring Switch (No more counter self-destruct)
+    // ==================== MULTI-LAYER PROTECTION SETUP ====================
+    function activateMultiLayerProtection() {
+      if (!checkDomain()) return;
+
+      // Apply protections to top-level index page context
+      applyUIBlocks(document);
+
+      // LAYER 2: DevTools Live Monitoring Switch (Toggles curtain on size shifts)
       setInterval(() => {
         if (!checkDomain()) return;
 
-        const threshold = 120;
+        const threshold = 160;
         const widthDiff = window.outerWidth - window.innerWidth;
         const heightDiff = window.outerHeight - window.innerHeight;
 
         if (widthDiff > threshold || heightDiff > threshold) {
           toggleOverlay(true, "Developer tools detected");
         } else {
-          toggleOverlay(false); // <--- THIS AUTO-RESTORES YOUR APP INSTANTLY
+          toggleOverlay(false);
         }
       }, 350);
 
       // LAYER 3 & CONSOLE: Console spam protection
       console.clear();
-      console.log("%c🔐 OwnFinTrack Protected v2.0 - Multiple Encryption Layers Active", "color:#7c3aed;font-size:14px;font-weight:bold");
+      console.log("%c🔐 OwnFinTrack Protected v2.5 - Multiple Encryption Layers Active", "color:#7c3aed;font-size:14px;font-weight:bold");
     }
 
     // Final Initialization
