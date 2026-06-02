@@ -121,10 +121,7 @@
     // (Your state handling, hooks, components, and ReactDOM.render() block)
 
     // Quick structural test element to confirm it works:
-    const TestApp = () => {
-      return (
-        <div id="root"></div>
-<script type="text/babel">
+    
 const { useState, useMemo, useRef, useCallback } = React;
 
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
@@ -1103,13 +1100,7 @@ function App() {
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(<App/>);
 </script>
-      );
-    };
-
-    const rootElement = document.getElementById('root');
-    const root = ReactDOM.createRoot(rootElement);
-    root.render(<TestApp />);
-  </script>
+      
 
 </body>
 </html>
