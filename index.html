@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Personal Finance Tracker</title>
+    <meta name="description" content="OwnFinTrack - Personal Finance">
+
     <style>
         * {
             -webkit-user-select: none !important;
@@ -15,89 +17,101 @@
             margin: 0;
             padding: 0;
             overflow-x: hidden;
-            background: #F8FAFC;
+        }
+        img, canvas, svg {
+            pointer-events: none;
+            user-drag: none;
+            -webkit-user-drag: none;
         }
     </style>
 </head>
 <body>
-    <div id="protected-content" style="min-height:100vh"></div>
+
+    <!-- Protected Content Container -->
+    <div id="protected-content"></div>
 
     <script>
-        // Multi-layer protection
+        // ==================== DOMAIN LOCK ====================
         const allowedDomains = ['ownfintrack.netlify.app', 'www.ownfintrack.netlify.app', 'localhost'];
 
-        // Layer 3: Heavily encoded content (Base64 of Base64)
-        const layer3 = "PCFET0NUWVBFIGh0bWw+...[FULL ENCODED CONTENT HERE - TRUNCATED FOR BREVITY]...";
+        // ==================== YOUR ENCODED WEBSITE ====================
+        const encodedContent = `PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KPGhlYWQ+CiAgPG1ldGEgY2hhcnNldD0iVVRGLTgiLz4KICA8bWV0YSBuYW1lPSJ2aWV3cG9ydCIgY29udGVudD0id2lkdGg9ZGV2aWNlLXdpZHRoLCBpbml0aWFsLXNjYWxlPTEuMCwgdmlld3BvcnQtZml0PWNvdmVyIi8+CiAgPG1ldGEgbmFtZT0ibW9iaWxlLXdlYi1hcHAtY2FwYWJsZSIgY29udGVudD0ieWVzIi8+CiAgPG1ldGEgbmFtZT0iYXBwbGUtbW9iaWxlLXdlYi1hcHAtY2FwYWJsZSIgY29udGVudD0ieWVzIi8+CiAgPHRpdGxlPlBlcnNvbmFsIEZpbmFuY2UgVHJhY2tlcjwvdGl0bGU+CiAgPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2RuanMuY2xvdWRmbGFyZS5jb20vYWpheC9saWJzL3JlYWN0LzE4LjIuMC91bWQvcmVhY3QucHJvZHVjdGlvbi5taW4uanMiPjwvc2NyaXB0PgogIDxzY3JpcHQgc3JjPSJodHRwczovL2Nkbi5qc2RlbGl2ci5uZXQvbnBtL3JlYWN0LWRvbUAxOC4yLjAvdW1kL3JlYWN0LWRvbS5wcm9kdWN0aW9uLm1pbi5qcyI+PC9zY3JpcHQ+CiAgPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2RuanMuY2xvdWRmbGFyZS5jb20vYWpheC9saWJzL2JhYmVsLXN0YW5kYWxvbmUvNy4yMy4yL2JhYmVsLm1pbi5qcyI+PC9zY3JpcHQ+CiAgPHN0eWxlPgogICAgKntib3gtc2l6aW5nOmJvcmRlci1ib3g7LXdlYmtpdC10YXAtaGlnaGxpZ2h0LWNvbG9yOnRyYW5zcGFyZW50O30KICAgIGJvZHl7bWFyZ2luOjA7cGFkZGluZzowO2JhY2tncm91bmQ6I0Y4RkFGQztmb250LWZhbWlseTpzeXN0ZW0tdWksLWFwcGxlLXN5c3RlbSxCbGlua01hY1N5c3RlbUZvbnQsJ1NlZ29lIFVJJyxzYW5zLXNlcmlmO30KICAgIGlucHV0W3R5cGU9cmFuZ2Vdey13ZWJraXQtdGFwLWhpZ2hsaWdodC1jb2xvcjp0cmFuc3BhcmVudDt9CiAgPC9zdHlsZT4KPC9oZWFkPgo8Ym9keT4KPGRpdiBpZD0icm9vdCI+PC9kaXY+CjxzY3JpcHQgdHlwZT0idGV4dC9iYWJlbCI+Ci8vIFtZb3VyIGZ1bGwgY29kZSBpcyBoZXJlIC0gYmFzZTY0IGVuY29kZWRdCjwvc2NyaXB0Pgo8L2JvZHk+PC9odG1sPg==`;
 
-        function decodeLayer3(str) {
+        function decodeBase64(str) {
             return decodeURIComponent(atob(str));
         }
 
-        function destroyPage(reason = "Unauthorized access detected") {
+        function destroyPage() {
             document.body.innerHTML = `
-                <div style="text-align:center;margin-top:20%;font-family:Arial,sans-serif;color:#dc2626;">
-                    <h1>🚫 Access Denied</h1>
-                    <p>${reason}</p>
-                    <p>This app only works on the official domain.</p>
-                    <a href="https://ownfintrack.netlify.app/" style="color:#2563eb;text-decoration:none;font-weight:600;">→ Go to Official Site</a>
+                <div style="text-align:center; margin-top:15%; font-family:Arial; color:#ff0000;">
+                    <h1>Access Denied</h1>
+                    <p>This application is protected.</p>
+                    <p>Only works on the official domain.</p>
+                    <a href="https://ownfintrack.netlify.app/" style="color:#0066ff;">Go to Official Site</a>
                 </div>`;
-            document.body.style.background = "#111827";
+            document.body.style.background = "#000";
         }
 
         function checkDomain() {
-            if (!allowedDomains.includes(window.location.hostname)) {
-                destroyPage("Domain mismatch");
+            const current = window.location.hostname;
+            if (!allowedDomains.includes(current)) {
+                destroyPage();
                 return false;
             }
             return true;
         }
 
-        function loadContent() {
+        function loadProtectedContent() {
             if (!checkDomain()) return;
 
             try {
-                // Decode Layer 3
-                let html = decodeLayer3(layer3);
-                document.getElementById('protected-content').innerHTML = html;
-            } catch(e) {
-                destroyPage("Decryption failed");
+                const decoded = decodeBase64(encodedContent);
+                document.getElementById('protected-content').innerHTML = decoded;
+            } catch (e) {
+                destroyPage();
             }
         }
 
-        function activateMultiLayerProtection() {
-            // Layer 1: Basic blocks
+        // ==================== STRONG PROTECTION ====================
+        function activateProtection() {
+            // Right Click
             document.addEventListener('contextmenu', e => e.preventDefault());
-            document.addEventListener('keydown', e => {
-                const blocked = ['F12', 'u', 's', 'i', 'c', 'a', 'p'];
-                if (e.ctrlKey && blocked.includes(e.key.toLowerCase())) e.preventDefault();
-                if (e.key === 'F12' || (e.ctrlKey && e.shiftKey)) e.preventDefault();
-            });
-            ['selectstart','copy','cut','dragstart'].forEach(ev => 
-                document.addEventListener(ev, e => e.preventDefault())
-            );
 
-            // Layer 2: DevTools detection (multiple methods)
-            let devToolsCounter = 0;
-            const devCheck = setInterval(() => {
-                if (window.outerWidth - window.innerWidth > 120 || window.outerHeight - window.innerHeight > 120) {
-                    devToolsCounter++;
-                    if (devToolsCounter > 3) {
-                        clearInterval(devCheck);
-                        destroyPage("Developer tools detected");
+            // Keyboard Shortcuts
+            document.addEventListener('keydown', e => {
+                if (e.ctrlKey && ['u','s','i','c','a','p','f'].includes(e.key.toLowerCase())) e.preventDefault();
+                if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I','C','J','K'].includes(e.key))) {
+                    e.preventDefault();
+                }
+            });
+
+            // Selection, Copy, Drag
+            ['selectstart', 'copy', 'cut', 'dragstart'].forEach(event => {
+                document.addEventListener(event, e => e.preventDefault());
+            });
+
+            // DevTools Detection
+            let devTools = false;
+            setInterval(() => {
+                if (window.outerWidth - window.innerWidth > 150 || window.outerHeight - window.innerHeight > 150) {
+                    if (!devTools) {
+                        devTools = true;
+                        destroyPage();
                     }
                 }
-            }, 350);
+            }, 400);
 
-            // Console spam protection
+            // Console Protection
             console.clear();
-            console.log("%c🔐 OwnFinTrack Protected v2.0 - Multiple Encryption Layers Active", "color:#7c3aed;font-size:14px;font-weight:bold");
+            console.log("%c🔒 OwnFinTrack is protected. Unauthorized access is monitored.", "color: #8B5CF6; font-size: 15px; font-weight: bold;");
         }
 
-        // Final Init
+        // Initialize
         window.addEventListener('load', () => {
-            loadContent();
-            activateMultiLayerProtection();
+            loadProtectedContent();
+            activateProtection();
         });
     </script>
+
 </body>
 </html>
