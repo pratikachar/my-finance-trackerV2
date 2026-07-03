@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>FinTrack — Experiments & Bug Fixes</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *{box-sizing:border-box;}
+    body{margin:0;padding:16px;background:#F8FAFC;font-family:system-ui,-apple-system,sans-serif;}
+    .card{background:#fff;border-radius:12px;border:1px solid #F1F5F9;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+    h2{font-size:14px;font-weight:600;color:#374151;margin:0 0 12px;}
+    button{padding:8px 16px;border-radius:8px;border:1px solid #E5E7EB;background:#fff;cursor:pointer;font-size:13px;}
+    button:hover{background:#F9FAFB;}
+    input{padding:8px 10px;border-radius:8px;border:1.5px solid #E5E7EB;font-size:13px;outline:none;width:100%;}
+    input:focus{border-color:#8B5CF6;}
+    .flex{display:flex;gap:8;align-items:center;flex-wrap:wrap;}
+    .badge{font-size:10px;padding:2px 8px;border-radius:99px;font-weight:600;}
+    .pass{background:#D1FAE5;color:#10B981;}
+    .fail{background:#FEE2E2;color:#EF4444;}
+    .warn{background:#FEF3C7;color:#F59E0B;}
+    pre{background:#1e1e2e;color:#cdd6f4;padding:12px;border-radius:8px;font-size:12px;overflow-x:auto;}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+function TestLab() {
+  const [tests, setTests] = useState([
+    { id: 1, name: "INR formatting (₹1,000)", fn: () => "₹1,000" === "₹1,000", status: "pending" },
+    { id: 2, name: "localStorage save/load", fn: () => { try { localStorage.setItem("_test","ok"); const v = localStorage.getItem("_test"); localStorage.removeItem("_test"); return v === "ok"; } catch { return false; }}, status: "pending" },
+  ]);
+  const [log, setLog] = useState([]);
+
+  function runAll() {
+    setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] Running all tests...`]);
+    setTests(prev => prev.map(t => {
+      try {
+        const pass = t.fn();
+        setLog(l => [...l, `  ${pass ? '✓' : '✗'} ${t.name}`]);
+        return { ...t, status: pass ? "pass" : "fail" };
+      } catch (e) {
+        setLog(l => [...l, `  ✗ ${t.name} → ${e.message}`]);
+        return { ...t, status: "fail" };
+      }
+    }));
+  }
+
+  function clearLog() { setLog([]); }
+
+  return (
+    <div>
+      <div className="card">
+        <div className="flex" style={{justifyContent:"space-between"}}>
+          <h2 style={{margin:0}}>🧪 Test Lab</h2>
+          <div className="flex">
+            <button onClick={runAll}>▶ Run All</button>
+            <button onClick={clearLog}>Clear Log</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>Test Cases</h2>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {tests.map(t => (
+            <div key={t.id} className="flex" style={{justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #F3F4F6"}}>
+              <span style={{fontSize:13,color:"#374151"}}>{t.name}</span>
+              <span className={`badge ${t.status === "pass" ? "pass" : t.status === "fail" ? "fail" : "warn"}`}>
+                {t.status === "pending" ? "⏳ Pending" : t.status === "pass" ? "✅ Pass" : "❌ Fail"}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>Experiment Log</h2>
+        <pre style={{maxHeight:300,overflow:"auto"}}>
+          {log.length === 0 ? "// No tests run yet. Click 'Run All' to begin." : log.join("\n")}
+        </pre>
+      </div>
+
+      <div className="card">
+        <h2>Quick Bug/Feature Notes</h2>
+        <textarea id="bugNotes" rows="6"
+          style={{width:"100%",borderRadius:8,border:"1.5px solid #E5E7EB",padding:8,fontSize:12,resize:"vertical",fontFamily:"monospace"}}
+          placeholder="• Enter bugs found in index5.html&#10;• Ideas for new features&#10;• Fixes to apply..."/>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<TestLab/>);
+</script>
+</body>
+</html>
