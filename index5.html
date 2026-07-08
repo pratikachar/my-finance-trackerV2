@@ -278,7 +278,9 @@ const [filterCat, setFilterCat]   = useState("all");  // "all" or specific categ
   const [showHist, setShowHist]   = useState(false);
   const [showData, setShowData]   = useState(false);
   // Added mode: "Bank/UPI" as default for form state
-const [form, setForm]           = useState({date:fom(today.getFullYear(),today.getMonth()),type:"expense",amount:"",category:"Food",note:"",mode:"Bank/UPI"});
+  const [form, setForm]           = useState({date:today.toISOString().slice(0,10),type:"expense",amount:"",category:"Food",note:"",mode:"Bank/UPI",fromMode:"Bank/UPI",toMode:"Cash"});
+  const [selDate, setSelDate]     = useState(today.toISOString().slice(0,10));
+  const [selWeekStart, setSelWeekStart] = useState(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+1);return d.toISOString().slice(0,10);});
   const [sipP, setSipP]           = useState({monthly:5000,rate:12,years:10});
   const [efP, setEfP]             = useState({monthly:30000});
   const [calcTab, setCalcTab]     = useState("sip");
@@ -297,10 +299,9 @@ const filtered = useMemo(() => {
   
   // Timeframe filter
   if(view === "daily") {
-    res = res.filter(e => e.date === new Date().toISOString().slice(0,10));
+    res = res.filter(e => e.date === selDate);
   } else if(view === "weekly") {
-    const d = new Date(); const day = d.getDay();
-    const mon = new Date(d); mon.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+    const mon = new Date(selWeekStart);
     const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
     res = res.filter(e => { const ed = new Date(e.date); return ed >= mon && ed <= sun; });
   } else {
@@ -308,7 +309,10 @@ const filtered = useMemo(() => {
   }
 
   // Type filter (Income vs Expense dropdown)
-  if (filterType !== "all") res = res.filter(e => e.type === filterType);
+  if (filterType !== "all") {
+    if(filterType === "transfer") res = res.filter(e => e.type==="transferOut"||e.type==="transferIn");
+    else res = res.filter(e => e.type === filterType);
+  }
   
   // Mode filter (Cash vs Bank dropdown)
   if (filterMode !== "all") res = res.filter(e => e.mode === filterMode || (!e.mode && filterMode === "Bank/UPI")); // fallback for old data
@@ -321,22 +325,30 @@ const filtered = useMemo(() => {
 
 const totalIn  = filtered.filter(e=>e.type==="income").reduce((a,b)=>a+b.amount,0);
 const totalOut = filtered.filter(e=>e.type==="expense").reduce((a,b)=>a+b.amount,0);
+const totalTransfer = filtered.filter(e=>e.type==="transferOut"||e.type==="transferIn").reduce((a,b)=>a+b.amount,0);
 
 // Cash in hand & Bank Balance tracking across ALL time
 const assetBalances = useMemo(() => {
   return entries.reduce((acc, e) => {
     const amt = e.amount;
-    const mode = e.mode || "Bank/UPI";
-    if (e.type === "income") {
-      acc[mode] += amt;
+    if (e.type === "transferOut") {
+      acc[e.mode] -= amt;
+    } else if (e.type === "transferIn") {
+      acc[e.mode] += amt;
     } else {
-      acc[mode] -= amt;
+      const mode = e.mode || "Bank/UPI";
+      if (e.type === "income") acc[mode] += amt;
+      else acc[mode] -= amt;
     }
     return acc;
   }, {"Bank/UPI": 0, "Cash": 0});
 }, [entries]);
   const net      = totalIn - totalOut;
-  const runBal   = entries.reduce((a,e)=>a+(e.type==="income"?e.amount:-e.amount),0);
+  const runBal   = entries.reduce((a,e)=>{
+    if(e.type==="transferOut") return a-e.amount;
+    if(e.type==="transferIn") return a+e.amount;
+    return a+(e.type==="income"?e.amount:-e.amount);
+  },0);
 
   const curMoIn  = entries.filter(e=>e.type==="income"&&e.date.slice(0,7)===curMk).reduce((a,b)=>a+b.amount,0);
   const curMoOut = entries.filter(e=>e.type==="expense"&&e.date.slice(0,7)===curMk).reduce((a,b)=>a+b.amount,0);
@@ -346,13 +358,13 @@ const assetBalances = useMemo(() => {
 
   const catMap = useMemo(()=>{
     const m={};
-    filtered.filter(e=>e.type==="expense").forEach(e=>{m[e.category]=(m[e.category]||0)+e.amount;});
+    filtered.filter(e=>e.type==="expense").forEach(e=>{if(e.category!=="Transfer")m[e.category]=(m[e.category]||0)+e.amount;});
     return m;
   },[filtered]);
   const catData = Object.entries(catMap).map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
 const incCatMap = useMemo(() => {
   const m = {};
-  filtered.filter(e => e.type === "income").forEach(e => { m[e.category] = (m[e.category] || 0) + e.amount; });
+  filtered.filter(e => e.type === "income").forEach(e => { if(e.category!=="Transfer")m[e.category]=(m[e.category]||0)+e.amount; });
   return m;
 }, [filtered]);
 const incCatData = Object.entries(incCatMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -400,20 +412,39 @@ const incCatData = Object.entries(incCatMap).map(([name, value]) => ({ name, val
 
   // ── HANDLERS ──────────────────────────────────────────────────────────────
  
-  function openAdd(){setForm({date:new Date().toISOString().slice(0,10),type:"expense",amount:"",category:"Food",note:""});setEditId(null);setShowForm(true);}
-  function openEdit(e){setForm({date:e.date,type:e.type,amount:e.amount,category:e.category,note:e.note});setEditId(e.id);setShowForm(true);}
+  function openAdd(){setForm({date:new Date().toISOString().slice(0,10),type:"expense",amount:"",category:"Food",note:"",mode:"Bank/UPI",fromMode:"Bank/UPI",toMode:"Cash"});setEditId(null);setShowForm(true);}
+  function openEdit(e){setForm({date:e.date,type:e.type,amount:e.amount,category:e.category,note:e.note,mode:e.mode||"Bank/UPI",fromMode:e.fromMode||"Bank/UPI",toMode:e.toMode||"Cash"});setEditId(e.id);setShowForm(true);}
   function saveForm(){
     if(!form.amount||isNaN(Number(form.amount))||Number(form.amount)<=0) return;
-    const entry={...form,amount:parseFloat(form.amount)};
-    if(editId!==null) upd(s=>({entries:s.entries.map(e=>e.id===editId?{...entry,id:editId}:e)}));
-    else upd(s=>({entries:[...s.entries,{...entry,id:s.nextId}],nextId:s.nextId+1}));
+    const amt=parseFloat(form.amount);
+    if(form.type==="transfer"){
+      if(editId!==null){
+        upd(s=>({entries:s.entries.filter(e=>e.id!==editId&&e.id!==editId+1)}));
+      }
+      const tg=Date.now();
+      upd(s=>{
+        const e1={date:form.date,type:"transferOut",amount:amt,category:"Transfer",note:`Transfer to ${form.toMode}`,mode:form.fromMode,fromMode:form.fromMode,toMode:form.toMode,transferGroup:tg,id:s.nextId};
+        const e2={date:form.date,type:"transferIn",amount:amt,category:"Transfer",note:`Transfer from ${form.fromMode}`,mode:form.toMode,fromMode:form.fromMode,toMode:form.toMode,transferGroup:tg,id:s.nextId+1};
+        return {entries:[...s.entries.filter(e=>editId===null||(e.id!==editId&&e.id!==editId+1)),e1,e2],nextId:s.nextId+2};
+      });
+    } else {
+      const entry={...form,amount:amt};
+      if(editId!==null) upd(s=>({entries:s.entries.map(e=>e.id===editId?{...entry,id:editId}:e)}));
+      else upd(s=>({entries:[...s.entries,{...entry,id:s.nextId}],nextId:s.nextId+1}));
+    }
     setShowForm(false);
   }
   function delEntry(id){
+  const e=entries.find(x=>x.id===id);
+  const isTransfer=e&&e.transferGroup;
   setConf({
-    msg: "Are you sure you want to delete this transaction?",
+    msg: isTransfer?"Delete this transfer (both sides)?": "Delete this transaction?",
     onConfirm: () => {
-      upd(s=>({entries:s.entries.filter(e=>e.id!==id)}));
+      if(isTransfer){
+        upd(s=>({entries:s.entries.filter(x=>x.transferGroup!==e.transferGroup)}));
+      } else {
+        upd(s=>({entries:s.entries.filter(x=>x.id!==id)}));
+      }
       setConf(null);
     }
   });
@@ -423,7 +454,7 @@ const incCatData = Object.entries(incCatMap).map(([name, value]) => ({ name, val
   function delGoal(id){upd(s=>({goals:s.goals.filter(g=>g.id!==id)}));}
   function updBudget(cat,v){upd(s=>({budgets:{...s.budgets,[cat]:Number(v)||0}}));}
 async function exportCSV(){
-  const rows=[["Date","Type","Amount","Category","Note"],...entries.map(e=>[e.date,e.type,e.amount,e.category,`"${e.note||""}"`])]; 
+  const rows=[["Date","Type","Amount","Category","Note","Mode"],...entries.map(e=>[e.date,e.type,e.amount,e.category,`"${e.note||""}"`,`"${e.mode||"Bank/UPI"}"`])]; 
   await dl(rows.map(r=>r.join(",")).join("\n"),"finance_export.csv","text/csv;charset=utf-8"); 
 }
 
@@ -572,17 +603,21 @@ async function dl(content, name, type) {
           <p style={{fontSize:12,color:"#9CA3AF",textAlign:"center",padding:"1rem 0"}}>No transactions yet.</p>
         ):(
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {[...entries].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(e=>(
+              {[...entries].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(e=>{
+              const isTransfer=e.type==="transferOut"||e.type==="transferIn";
+              const sign=e.type==="income"||e.type==="transferIn"?"+":"-";
+              const col=isTransfer?"#3B82F6":e.type==="income"?"#10B981":"#EF4444";
+              return (
               <div key={e.id} style={{display:"flex",alignItems:"center",gap:8}}>
-                <div style={{width:32,height:32,borderRadius:8,background:CB[e.category]||"#F9FAFB",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                  <span style={{fontSize:10,fontWeight:700,color:CC[e.category]||"#888"}}>{e.category.slice(0,3).toUpperCase()}</span>
+                <div style={{width:32,height:32,borderRadius:8,background:isTransfer?"#EFF6FF":CB[e.category]||"#F9FAFB",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <span style={{fontSize:10,fontWeight:700,color:isTransfer?"#3B82F6":CC[e.category]||"#888"}}>{isTransfer?"TRF":e.category.slice(0,3).toUpperCase()}</span>
                 </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <p style={{margin:0,fontSize:12,fontWeight:500,color:"#111827",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.category}{e.note&&<span style={{fontWeight:400,color:"#6B7280"}}> · {e.note}</span>}</p>
+                  <p style={{margin:0,fontSize:12,fontWeight:500,color:"#111827",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{isTransfer?`Transfer: ${e.mode||"Bank/UPI"} → ${e.toMode||"Cash"}`:e.category}{e.note&&<span style={{fontWeight:400,color:"#6B7280"}}> · {e.note}</span>}</p>
                   <p style={{margin:0,fontSize:10,color:"#9CA3AF"}}>{fmtD(e.date)}</p>
                 </div>
-                <span style={{fontSize:13,fontWeight:600,color:e.type==="income"?"#10B981":"#EF4444",whiteSpace:"nowrap"}}>{e.type==="income"?"+":"-"}{INR(e.amount)}</span>
-              </div>
+                <span style={{fontSize:13,fontWeight:600,color:col,whiteSpace:"nowrap"}}>{sign}{INR(e.amount)}</span>
+              </div>);})
             ))}
           </div>
         )}
@@ -620,6 +655,7 @@ async function dl(content, name, type) {
       <option value="all">All Types</option>
       <option value="income">Income Only</option>
       <option value="expense">Expenses Only</option>
+      <option value="transfer">Transfers</option>
     </select>
   </div>
   <div>
@@ -641,9 +677,23 @@ async function dl(content, name, type) {
   </div>
 </Card>
 
+      {/* Date/Week picker for daily/weekly views */}
+      {view === "daily" && (
+        <Card style={{marginBottom:12,padding:"10px 12px"}}>
+          <label style={{fontSize:9,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Select Date</label>
+          <input type="date" value={selDate} onChange={e=>setSelDate(e.target.value)} style={{width:"100%",boxSizing:"border-box",borderRadius:8,border:"1.5px solid #E5E7EB",padding:"8px 10px",fontSize:13,outline:"none"}}/>
+        </Card>
+      )}
+      {view === "weekly" && (
+        <Card style={{marginBottom:12,padding:"10px 12px"}}>
+          <label style={{fontSize:9,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Week Starting (Mon)</label>
+          <input type="date" value={selWeekStart} onChange={e=>setSelWeekStart(e.target.value)} style={{width:"100%",boxSizing:"border-box",borderRadius:8,border:"1.5px solid #E5E7EB",padding:"8px 10px",fontSize:13,outline:"none"}}/>
+        </Card>
+      )}
+
       {/* Mini summary */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
-        {[{l:"In",v:totalIn,c:"#10B981",bg:"#F0FDF4"},{l:"Out",v:totalOut,c:"#EF4444",bg:"#FEF2F2"},{l:"Net",v:net,c:net>=0?"#8B5CF6":"#EF4444",bg:net>=0?"#EDE9FE":"#FEF2F2"}].map(c=>(
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
+        {[{l:"In",v:totalIn,c:"#10B981",bg:"#F0FDF4"},{l:"Out",v:totalOut,c:"#EF4444",bg:"#FEF2F2"},{l:"Transfer",v:totalTransfer,c:"#3B82F6",bg:"#EFF6FF"},{l:"Net",v:net,c:net>=0?"#8B5CF6":"#EF4444",bg:net>=0?"#EDE9FE":"#FEF2F2"}].map(c=>(
           <div key={c.l} style={{background:c.bg,borderRadius:10,padding:"10px 12px"}}>
             <p style={{margin:"0 0 2px",fontSize:9,color:c.c,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em"}}>{c.l}</p>
             <p style={{margin:0,fontSize:15,fontWeight:700,color:c.c}}>{INR(c.v)}</p>
@@ -662,7 +712,7 @@ async function dl(content, name, type) {
       {/* Entry list */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
         <p style={{margin:0,fontSize:11,fontWeight:600,color:"#6B7280",textTransform:"uppercase",letterSpacing:"0.07em"}}>Entries ({filtered.length})</p>
-        {filtered.length>0&&<button onClick={async ()=>{const rows=[["Date","Type","Amount","Category","Note"],...filtered.map(e=>[e.date,e.type,e.amount,e.category,`"${e.note||""}"`])]; await dl(rows.map(r=>r.join(",")).join("\n"),`transactions_${curMk}.csv`,"text/csv;charset=utf-8");}} style={{fontSize:11,color:"#3B82F6",background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontWeight:500}}> <Ico n="dl" s={12} c="#3B82F6"/> Month CSV </button>}
+        {filtered.length>0&&<button onClick={async ()=>{const rows=[["Date","Type","Amount","Category","Note","Mode"],...filtered.map(e=>[e.date,e.type,e.amount,e.category,`"${e.note||""}"`,`"${e.mode||"Bank/UPI"}"`])]; await dl(rows.map(r=>r.join(",")).join("\n"),`transactions_${curMk}.csv`,"text/csv;charset=utf-8");}} style={{fontSize:11,color:"#3B82F6",background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontWeight:500}}> <Ico n="dl" s={12} c="#3B82F6"/> Month CSV </button>}
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         {filtered.length===0?(
@@ -672,15 +722,15 @@ async function dl(content, name, type) {
           </div>
         ):([...filtered].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>(
           <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid #F1F5F9",borderRadius:12,padding:"9px 12px",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-            <div style={{width:34,height:34,borderRadius:9,background:CB[e.category]||"#F3F4F6",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <span style={{fontSize:9,fontWeight:800,color:CC[e.category]||"#888"}}>{e.category.slice(0,3).toUpperCase()}</span>
+            <div style={{width:34,height:34,borderRadius:9,background:e.type==="transferOut"||e.type==="transferIn"?"#EFF6FF":CB[e.category]||"#F3F4F6",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <span style={{fontSize:9,fontWeight:800,color:e.type==="transferOut"||e.type==="transferIn"?"#3B82F6":CC[e.category]||"#888"}}>{e.type==="transferOut"||e.type==="transferIn"?"TRF":e.category.slice(0,3).toUpperCase()}</span>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <p style={{margin:0,fontSize:12,fontWeight:600,color:"#111827"}}>{e.category}{e.note&&<span style={{fontWeight:400,color:"#6B7280"}}> · {e.note}</span>}</p>
-              <p style={{margin:0,fontSize:10,color:"#9CA3AF"}}>{fmtD(e.date)}</p>
+              <p style={{margin:0,fontSize:12,fontWeight:600,color:"#111827"}}>{e.type==="transferOut"||e.type==="transferIn"?`\u2192 ${e.mode||"Bank/UPI"} \u2192 ${e.toMode||"Cash"}`:e.category}{e.note&&<span style={{fontWeight:400,color:"#6B7280"}}> \u00b7 {e.note}</span>}</p>
+              <p style={{margin:0,fontSize:10,color:"#9CA3AF"}}>{fmtD(e.date)} <span style={{padding:"1px 5px",borderRadius:4,background:e.mode==="Cash"?"#FFFBEB":"#EFF6FF",color:e.mode==="Cash"?"#D97706":"#3B82F6",fontWeight:600,fontSize:9}}>{e.mode||"UPI"}</span></p>
             </div>
-            <span style={{fontSize:13,fontWeight:700,color:e.type==="income"?"#10B981":"#EF4444",whiteSpace:"nowrap"}}>{e.type==="income"?"+":"-"}{INR(e.amount)}</span>
-            <button onClick={()=>openEdit(e)} style={{width:28,height:28,borderRadius:7,border:"1px solid #E5E7EB",background:"#F9FAFB",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} aria-label="Edit"><Ico n="edit" s={13} c="#6B7280"/></button>
+            <span style={{fontSize:13,fontWeight:700,color:e.type==="income"?"#10B981":e.type==="transferOut"||e.type==="transferIn"?"#3B82F6":"#EF4444",whiteSpace:"nowrap"}}>{e.type==="income"||e.type==="transferIn"?"+":"-"}{INR(e.amount)}</span>
+            {e.type==="transferOut"||e.type==="transferIn"?<span style={{fontSize:9,color:"#3B82F6",background:"#EFF6FF",padding:"4px 6px",borderRadius:6}}>TRF</span>:<button onClick={()=>openEdit(e)} style={{width:28,height:28,borderRadius:7,border:"1px solid #E5E7EB",background:"#F9FAFB",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} aria-label="Edit"><Ico n="edit" s={13} c="#6B7280"/></button>}
             <button onClick={()=>delEntry(e.id)} style={{width:28,height:28,borderRadius:7,border:"1px solid #FEE2E2",background:"#FFF5F5",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} aria-label="Delete"><Ico n="trash" s={13} c="#EF4444"/></button>
           </div>
         )))}
@@ -730,8 +780,7 @@ async function dl(content, name, type) {
           <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
             <DonutChartSVG data={catData} size={160}/>
             <div style={{flex:1,display:"flex",flexDirection:"column",gap:5}}>
-              {catData.slice(0,6).map(c=>(
-                // Replace the outer div of the expense list mapper to allow click filtration routing:
+              {catData.map(c=>(
 <div key={c.name} onClick={()=>{setFilterType("expense"); setFilterCat(c.name); setTab("tracker");}} style={{display:"flex",alignItems:"center",gap:6, cursor:"pointer"}}>
                   <div style={{width:8,height:8,borderRadius:2,background:CC[c.name]||"#9CA3AF",flexShrink:0}}/>
                   <span style={{fontSize:11,color:"#374151",flex:1}}>{c.name}</span>
@@ -974,8 +1023,8 @@ async function dl(content, name, type) {
           <CloseBtn onClick={()=>setShowForm(false)}/>
         </div>
         <div style={{display:"flex",gap:8,marginBottom:14,background:"#F3F4F6",borderRadius:10,padding:4}}>
-          {["expense","income"].map(t=>(
-            <button key={t} onClick={()=>setForm(f=>({...f,type:t,category:t==="income"?"Salary":"Food"}))} style={{flex:1,fontSize:13,textTransform:"capitalize",borderRadius:8,padding:"8px",cursor:"pointer",fontWeight:600,border:"none",transition:"all .15s",background:form.type===t?(t==="income"?"#10B981":"#EF4444"):"transparent",color:form.type===t?"#fff":"#9CA3AF"}}>{t}</button>
+          {[{id:"expense",c:"#EF4444"},{id:"income",c:"#10B981"},{id:"transfer",c:"#3B82F6"}].map(t=>(
+            <button key={t.id} onClick={()=>setForm(f=>({...f,type:t.id,category:t.id==="income"?"Salary":t.id==="transfer"?"Transfer":"Food",mode:t.id==="transfer"?f.mode||"Bank/UPI":f.mode}))} style={{flex:1,fontSize:13,textTransform:"capitalize",borderRadius:8,padding:"8px",cursor:"pointer",fontWeight:600,border:"none",transition:"all .15s",background:form.type===t.id?(t.id==="income"?"#10B981":t.id==="transfer"?"#3B82F6":"#EF4444"):"transparent",color:form.type===t.id?"#fff":"#9CA3AF"}}>{t.id}</button>
           ))}
         </div>
         {[["Date","date","date"],["Amount (₹)","number","amount"],["Note (optional)","text","note"]].map(([label,type,key])=>(
@@ -990,13 +1039,28 @@ async function dl(content, name, type) {
             {(form.type==="income"?CI:CE).map(c=><option key={c}>{c}</option>)}
           </select>
         </div>
-		{/* Added Selector for payment choice selection */}
+		{form.type !== "transfer" && (
 <div style={{marginBottom:14}}>
   <label style={{fontSize:10,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Payment Mode</label>
   <select value={form.mode || "Bank/UPI"} onChange={e=>setForm(f=>({...f,mode:e.target.value}))} style={{width:"100%",boxSizing:"border-box",borderRadius:10,border:"1.5px solid #E5E7EB",padding:"9px 12px",fontSize:13,outline:"none",color:"#111827",background:"#fff"}}>
     {MODES.map(m=><option key={m}>{m}</option>)}
   </select>
 </div>
+)}
+{form.type === "transfer" && (
+<div style={{marginBottom:14}}>
+  <label style={{fontSize:10,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>From → To</label>
+  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+    <select value={form.fromMode} onChange={e=>setForm(f=>({...f,fromMode:e.target.value}))} style={{flex:1,borderRadius:10,border:"1.5px solid #E5E7EB",padding:"9px 12px",fontSize:13,outline:"none",color:"#111827",background:"#fff"}}>
+      {MODES.map(m=><option key={m}>{m}</option>)}
+    </select>
+    <span style={{fontSize:16,color:"#6B7280"}}>→</span>
+    <select value={form.toMode} onChange={e=>setForm(f=>({...f,toMode:e.target.value}))} style={{flex:1,borderRadius:10,border:"1.5px solid #E5E7EB",padding:"9px 12px",fontSize:13,outline:"none",color:"#111827",background:"#fff"}}>
+      {MODES.filter(m=>m!==form.fromMode).map(m=><option key={m}>{m}</option>)}
+    </select>
+  </div>
+</div>
+)}
 		
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setShowForm(false)} style={{flex:1,fontSize:13,cursor:"pointer",borderRadius:10,padding:"10px",border:"1.5px solid #E5E7EB",background:"#fff",color:"#374151",fontWeight:600}}>Cancel</button>
@@ -1045,7 +1109,7 @@ async function dl(content, name, type) {
                   </p>
                 </div>
                 <button onClick={()=>{setViewM({y:pm.y,m:pm.m});setTab("tracker");setView("monthly");setShowHist(false);}} style={{fontSize:11,padding:"5px 10px",cursor:"pointer",borderRadius:8,border:"1px solid #E5E7EB",background:"#fff",color:"#374151",fontWeight:600}}>View</button>
-                <button onClick={async ()=>{const rows=[["Date","Type","Amount","Category","Note"],...pm.entries.map(e=>[e.date,e.type,e.amount,e.category,`"${e.note||""}"`])]; await dl(rows.map(r=>r.join(",")).join("\n"),`transactions_${pm.key}.csv`,"text/csv;charset=utf-8");}} style={{fontSize:11,padding:"5px 8px",cursor:"pointer",borderRadius:8,border:"1px solid #E5E7EB",background:"#fff",display:"flex",alignItems:"center",gap:4}}> <Ico n="dl" s={12} c="#6B7280"/> CSV </button>
+                <button onClick={async ()=>{const rows=[["Date","Type","Amount","Category","Note","Mode"],...pm.entries.map(e=>[e.date,e.type,e.amount,e.category,`"${e.note||""}"`,`"${e.mode||"Bank/UPI"}"`])]; await dl(rows.map(r=>r.join(",")).join("\n"),`transactions_${pm.key}.csv`,"text/csv;charset=utf-8");}} style={{fontSize:11,padding:"5px 8px",cursor:"pointer",borderRadius:8,border:"1px solid #E5E7EB",background:"#fff",display:"flex",alignItems:"center",gap:4}}> <Ico n="dl" s={12} c="#6B7280"/> CSV </button>
               </div>
             ))}
           </div>
