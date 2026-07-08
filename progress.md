@@ -5,43 +5,62 @@
 ```
 fintrack/
 ├── index5.html            # Main app v5 (stable)
-├── index6.html            # Main app v6 (new features)
-├── test-experiments.html  # Test/experiment playground
+├── index6.html            # Main app v6 (dark mode, undo, tags, recurring)
+├── index7.html            # Main app v7 (FINAL mobile-first feature-complete build)
+├── test-react.html        # Minimal React CDN test
 └── progress.md            # This file
 ```
 
-## Current Status (v6)
+> **index7.html is the final, feature-complete build** intended for wrapping into an Android APK (web-to-app).
+> All new work goes here. index5/index6 kept as stable references.
 
-### ✅ Features (v6 adds on v5)
-- **Dark mode** toggle with CSS variables, persisted to localStorage
-- **Undo** — last 10 state changes can be undone via header button
-- **Search** entries by note or tag text
-- **Tags** — comma-separated tags on each entry, searchable
-- **Category management** — add/rename/delete income & expense categories in Settings tab
-- **Budget rollover** — unused budget from last month carries forward
-- **Recurring transactions** — daily/weekly/monthly auto-generated entries; managed in Auto tab
-- **Settings tab** — manage categories
-- **Auto tab** — manage recurring entries with pause/resume
+## Data & Storage
+- Entries/budgets/goals: localStorage key `fintrack_v6`
+- PIN: localStorage key `fintrack_pin`
+- Starred entries: `fintrack_starred`
+- Loans: `fintrack_loans` · Net worth items: `fintrack_networth`
+- Theme: `fintrack_theme` · PWA manifest injected as inline blob URL
+- ⚠️ All data is **local only** — uninstalling the APK wipes everything. Export JSON backup before upgrading.
 
-### v5 Features (carried forward)
-- Dashboard with financial health score, summary, smart insights
-- Income/Expense tracking with category breakdown
-- Cash & Bank/UPI balance tracking with mode badge
-- Transfer between Bank/UPI and Cash
-- Daily (date picker), Weekly (week picker), Monthly views
-- Advanced filtering (type, payment mode, category, search)
-- Budget management with rollover & alerts
-- Savings goals tracker
-- Investment guidance (SIP calc, asset allocation, instrument cards, emergency fund)
-- Export CSV/JSON, Import JSON backup
-- Custom SVG chart system
-- Mobile-responsive
+## ✅ Features in index7.html (v7)
 
-### 🔜 Future Ideas
-- PWA offline support (service worker + manifest)
-- Multi-currency support
-- Cloud backup / sync
-- Export to PDF
-- Bill reminders / due date tracking
-- Net worth tracker
-- Recurring auto-pause when balance is low
+### Core (from v5/v6)
+- Dashboard: health score, summary cards, smart insights, cash/bank balances
+- Income/Expense/Transfer tracking, daily/weekly/monthly views, advanced filters
+- Budgets with rollover & alerts, Savings goals, Investment guidance (SIP, allocation, cards)
+- Dark mode, Undo (10 steps), Tags, Search, Category management, Recurring transactions
+- Export CSV/JSON, Import JSON, Custom SVG charts, Mobile-responsive
+
+### NEW in v7
+1. **🔐 PIN lock** — optional 4-digit PIN; Set/Unlock from header or Settings. Forgot PIN → reset ALL data.
+2. **👁 Quick-glance hide** — eye toggle in header masks every amount app-wide (uses global `INR`/`sINR` hide flag).
+3. **📊 Running balance** — each tracker entry shows cumulative balance after that entry.
+4. **🗓 Spending heatmap** — dashboard calendar grid colored by daily spend intensity (today marked).
+5. **📋 Periodic report** — copies a plain-text monthly summary to clipboard (Data tab).
+6. **💳 Loans / Debt tracker** — add/edit loans; auto EMI calculator (P×r×(1+r)ⁿ); next-EMI date with due banner + "Due" badge.
+7. **🏦 Net worth tracker** — Assets (PPF, MF, FD, SGB, NPS, Real Estate, etc.) & Liabilities (loans, cards) via dropdown; SIP recurring + projected value; SIP-due reminders.
+8. **🧾 Tax calculator (India)** — New/Old regime, 80C/80D/other deductions, cess, effective rate.
+9. **👆 Swipe-to-delete** — swipe left on an entry row to reveal Delete (mobile gesture).
+10. **⭐ Favourite entries** — star icon pins entries with gold border.
+11. **📦 Batch entry** — paste `Amount,Category,Note,Mode` lines; bulk add.
+12. **🔔 Auto-backup reminder** — toast on 1st of each month.
+13. **📱 PWA manifest** — inline blob manifest for standalone APK behavior.
+
+### Tabs (10, scrollable on mobile)
+Dashboard · Tracker · Analytics · Budget · Goals · Loans · NW · Invest · Tax · Settings
+
+## 🐛 Bug Fixes Applied (v7)
+- **Babel parse error**: `scale` SVG icon had two `<path>` without fragment wrapper → wrapped in `<>…</>`.
+- **PIN set broken**: header "Set PIN" button missing `setLocked(true)` → added so lock overlay appears.
+- **PIN set cancel**: added ✕ close button on PIN setup overlay (only when no PIN set yet).
+- **NW tab crash**: `React.useState` inside conditional render function violated rules of hooks → moved `editNwId`/`editLoanId` state to App level.
+- **Forgot PIN reset silent**: confirmation popup `zIndex:9999` was behind PIN overlay `zIndex:99999` → raised confirm to `zIndex:100000`.
+- **Quick-glance partial**: `INR`/`sINR` now honour global `window.__hideAmt` so ALL amounts hide.
+
+## Verified
+- Braces/parens balanced; no hooks inside render functions; loads as standalone APK via inline manifest.
+
+## 🔜 Not planned (out of scope for local-only app)
+- Cloud sync / server backend
+- PDF export (use CSV/JSON + share instead)
+- Multi-currency

@@ -32,6 +32,7 @@ const CB = {Food:"#FFF7ED",Transport:"#EFF6FF",Housing:"#F5F3FF",Utilities:"#FFF
 const MN  = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const FM  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const INR = n => "₹"+Math.abs(Number(n)||0).toLocaleString("en-IN",{maximumFractionDigits:0});
+const sINR = n => (Number(n)<0?"-":"")+INR(n);
 const today = new Date();
 const fom  = (y,m) => `${y}-${String(m+1).padStart(2,"0")}-01`;
 const mk   = (y,m) => `${y}-${String(m+1).padStart(2,"0")}`;
@@ -423,8 +424,8 @@ const incCatData = Object.entries(incCatMap).map(([name, value]) => ({ name, val
       }
       const tg=Date.now();
       upd(s=>{
-        const e1={date:form.date,type:"transferOut",amount:amt,category:"Transfer",note:`Transfer to ${form.toMode}`,mode:form.fromMode,fromMode:form.fromMode,toMode:form.toMode,transferGroup:tg,id:s.nextId};
-        const e2={date:form.date,type:"transferIn",amount:amt,category:"Transfer",note:`Transfer from ${form.fromMode}`,mode:form.toMode,fromMode:form.fromMode,toMode:form.toMode,transferGroup:tg,id:s.nextId+1};
+        const e1={date:form.date,type:"transferOut",amount:amt,note:`Transfer to ${form.toMode}`,mode:form.fromMode,fromMode:form.fromMode,toMode:form.toMode,transferGroup:tg,id:s.nextId};
+        const e2={date:form.date,type:"transferIn",amount:amt,note:`Transfer from ${form.fromMode}`,mode:form.toMode,fromMode:form.fromMode,toMode:form.toMode,transferGroup:tg,id:s.nextId+1};
         return {entries:[...s.entries.filter(e=>editId===null||(e.id!==editId&&e.id!==editId+1)),e1,e2],nextId:s.nextId+2};
       });
     } else {
@@ -556,12 +557,12 @@ async function dl(content, name, type) {
 {/* Cash & Bank Balances display */}
 <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12}}>
   <Card style={{padding:"10px 12px", background:"#f8fafc"}}>
-    <p style={{margin:0, fontSize:10, color:"#475569", fontWeight:600}}>🏦 BANK / UPI BALANCE</p>
-    <p style={{margin:"4px 0 0", fontSize:16, fontWeight:700, color:"#1e3a8a"}}>{INR(assetBalances["Bank/UPI"])}</p>
+    <p style={{margin:0, fontSize:10, color:"#475569", fontWeight:600}}>BANK / UPI BALANCE</p>
+    <p style={{margin:"4px 0 0", fontSize:16, fontWeight:700, color:"#1e3a8a"}}>{sINR(assetBalances["Bank/UPI"])}</p>
   </Card>
   <Card style={{padding:"10px 12px", background:"#f8fafc"}}>
-    <p style={{margin:0, fontSize:10, color:"#475569", fontWeight:600}}>💵 CASH IN HAND</p>
-    <p style={{margin:"4px 0 0", fontSize:16, fontWeight:700, color:"#b45309"}}>{INR(assetBalances["Cash"])}</p>
+    <p style={{margin:0, fontSize:10, color:"#475569", fontWeight:600}}>CASH IN HAND</p>
+    <p style={{margin:"4px 0 0", fontSize:16, fontWeight:700, color:"#b45309"}}>{sINR(assetBalances["Cash"])}</p>
   </Card>
 </div>
       {/* Monthly target editor */}
@@ -610,7 +611,7 @@ async function dl(content, name, type) {
               return (
               <div key={e.id} style={{display:"flex",alignItems:"center",gap:8}}>
                 <div style={{width:32,height:32,borderRadius:8,background:isTransfer?"#EFF6FF":CB[e.category]||"#F9FAFB",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                  <span style={{fontSize:10,fontWeight:700,color:isTransfer?"#3B82F6":CC[e.category]||"#888"}}>{isTransfer?"TRF":e.category.slice(0,3).toUpperCase()}</span>
+                  <span style={{fontSize:14,fontWeight:700,color:isTransfer?"#3B82F6":CC[e.category]||"#888"}}>{isTransfer?"→":e.category.slice(0,3).toUpperCase()}</span>
                 </div>
                 <div style={{flex:1,minWidth:0}}>
                   <p style={{margin:0,fontSize:12,fontWeight:500,color:"#111827",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{isTransfer?`Transfer: ${e.mode||"Bank/UPI"} → ${e.toMode||"Cash"}`:e.category}{e.note&&<span style={{fontWeight:400,color:"#6B7280"}}> · {e.note}</span>}</p>
@@ -618,7 +619,7 @@ async function dl(content, name, type) {
                 </div>
                 <span style={{fontSize:13,fontWeight:600,color:col,whiteSpace:"nowrap"}}>{sign}{INR(e.amount)}</span>
               </div>);})
-            ))}
+            }
           </div>
         )}
       </Card>
@@ -723,10 +724,10 @@ async function dl(content, name, type) {
         ):([...filtered].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>(
           <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid #F1F5F9",borderRadius:12,padding:"9px 12px",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
             <div style={{width:34,height:34,borderRadius:9,background:e.type==="transferOut"||e.type==="transferIn"?"#EFF6FF":CB[e.category]||"#F3F4F6",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <span style={{fontSize:9,fontWeight:800,color:e.type==="transferOut"||e.type==="transferIn"?"#3B82F6":CC[e.category]||"#888"}}>{e.type==="transferOut"||e.type==="transferIn"?"TRF":e.category.slice(0,3).toUpperCase()}</span>
+              <span style={{fontSize:9,fontWeight:800,color:e.type==="transferOut"||e.type==="transferIn"?"#3B82F6":CC[e.category]||"#888"}}>{e.type==="transferOut"||e.type==="transferIn"?"→":e.category.slice(0,3).toUpperCase()}</span>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <p style={{margin:0,fontSize:12,fontWeight:600,color:"#111827"}}>{e.type==="transferOut"||e.type==="transferIn"?`\u2192 ${e.mode||"Bank/UPI"} \u2192 ${e.toMode||"Cash"}`:e.category}{e.note&&<span style={{fontWeight:400,color:"#6B7280"}}> \u00b7 {e.note}</span>}</p>
+              <p style={{margin:0,fontSize:12,fontWeight:600,color:"#111827"}}>{e.type==="transferOut"||e.type==="transferIn"?`→ ${e.mode||"Bank/UPI"} → ${e.toMode||"Cash"}`:e.category}{e.note&&<span style={{fontWeight:400,color:"#6B7280"}}> · {e.note}</span>}</p>
               <p style={{margin:0,fontSize:10,color:"#9CA3AF"}}>{fmtD(e.date)} <span style={{padding:"1px 5px",borderRadius:4,background:e.mode==="Cash"?"#FFFBEB":"#EFF6FF",color:e.mode==="Cash"?"#D97706":"#3B82F6",fontWeight:600,fontSize:9}}>{e.mode||"UPI"}</span></p>
             </div>
             <span style={{fontSize:13,fontWeight:700,color:e.type==="income"?"#10B981":e.type==="transferOut"||e.type==="transferIn"?"#3B82F6":"#EF4444",whiteSpace:"nowrap"}}>{e.type==="income"||e.type==="transferIn"?"+":"-"}{INR(e.amount)}</span>
@@ -952,7 +953,7 @@ async function dl(content, name, type) {
               <button key={k} onClick={()=>setCalcTab(k)} style={{flex:1,padding:"7px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:calcTab===k?600:400,background:calcTab===k?"#fff":"transparent",color:calcTab===k?"#8B5CF6":"#6B7280",boxShadow:calcTab===k?"0 1px 4px rgba(0,0,0,0.08)":undefined}}>{l}</button>
             ))}
           </div>
-          {calcTab==="sip"?(<div> {[["Monthly SIP (₹)","monthly",500,100000,500],["Annual Return (%)","rate",1,30,1],["Duration (years)","years",1,40,1]].map(([l,k,mn,mx,st])=>(<div key={k} style={{marginBottom:10}}> <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}> <label style={{fontSize:11,color:"#6B7280",fontWeight:500}}>{l}</label> <span style={{fontSize:12,fontWeight:700,color:"#8B5CF6"}}>{k==="rate"?sipP[k]+"%":k==="years"?sipP[k]+" yrs":INR(sipP[k])}</span> </div> <input type="range" min={mn} max={mx} step={st} value={sipP[k]} onChange={e=>setSipP(p=>({...p,[k]:Number(e.target.value)}))} style={{"--thumb-color":"#8B5CF6",width:"100%"}}/> </div> ))}
+          {calcTab==="sip"?(<div> {[["Monthly SIP (₹)","monthly",500,100000,500],["Annual Return (%)","rate",1,30,1],["Duration (years)","years",1,40,1]].map(([l,k,mn,mx,st])=>(<div key={k} style={{marginBottom:10}}> <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}> <label style={{fontSize:11,color:"#6B7280",fontWeight:500}}>{l}</label> <span style={{fontSize:12,fontWeight:700,color:"#8B5CF6"}}>{k==="rate"?sipP[k]+"%":k==="years"?sipP[k]+" yrs":INR(sipP[k])}</span> </div> <div style={{display:"flex",alignItems:"center",gap:6}}> <button onClick={()=>setSipP(p=>({...p,[k]:Math.max(mn,p[k]-st)}))} style={{width:30,height:30,borderRadius:"50%",border:"1px solid #E5E7EB",background:"#fff",color:"#6B7280",fontSize:16,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>−</button> <input type="range" min={mn} max={mx} step={st} value={sipP[k]} onChange={e=>setSipP(p=>({...p,[k]:Number(e.target.value)}))} style={{"--thumb-color":"#8B5CF6",flex:1}}/> <button onClick={()=>setSipP(p=>({...p,[k]:Math.min(mx,p[k]+st)}))} style={{width:30,height:30,borderRadius:"50%",border:"1px solid #E5E7EB",background:"#fff",color:"#6B7280",fontSize:16,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>+</button> </div> </div> ))}
               <div style={{background:"linear-gradient(135deg,#EDE9FE,#F5F3FF)",borderRadius:12,padding:"1rem",marginTop:4}}>
                 <p style={{margin:"0 0 8px",fontSize:11,color:"#8B5CF6",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Projection</p>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
@@ -1024,7 +1025,7 @@ async function dl(content, name, type) {
         </div>
         <div style={{display:"flex",gap:8,marginBottom:14,background:"#F3F4F6",borderRadius:10,padding:4}}>
           {[{id:"expense",c:"#EF4444"},{id:"income",c:"#10B981"},{id:"transfer",c:"#3B82F6"}].map(t=>(
-            <button key={t.id} onClick={()=>setForm(f=>({...f,type:t.id,category:t.id==="income"?"Salary":t.id==="transfer"?"Transfer":"Food",mode:t.id==="transfer"?f.mode||"Bank/UPI":f.mode}))} style={{flex:1,fontSize:13,textTransform:"capitalize",borderRadius:8,padding:"8px",cursor:"pointer",fontWeight:600,border:"none",transition:"all .15s",background:form.type===t.id?(t.id==="income"?"#10B981":t.id==="transfer"?"#3B82F6":"#EF4444"):"transparent",color:form.type===t.id?"#fff":"#9CA3AF"}}>{t.id}</button>
+            <button key={t.id} onClick={()=>setForm(f=>({...f,type:t.id,category:t.id==="transfer"?"":t.id==="income"?"Salary":"Food",mode:t.id==="transfer"?f.mode||"Bank/UPI":f.mode}))} style={{flex:1,fontSize:13,textTransform:"capitalize",borderRadius:8,padding:"8px",cursor:"pointer",fontWeight:600,border:"none",transition:"all .15s",background:form.type===t.id?(t.id==="income"?"#10B981":t.id==="transfer"?"#3B82F6":"#EF4444"):"transparent",color:form.type===t.id?"#fff":"#9CA3AF"}}>{t.id}</button>
           ))}
         </div>
         {[["Date","date","date"],["Amount (₹)","number","amount"],["Note (optional)","text","note"]].map(([label,type,key])=>(
@@ -1033,12 +1034,14 @@ async function dl(content, name, type) {
             <input type={type} value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))} placeholder={key==="amount"?"0.00":key==="note"?"e.g. Swiggy, rent…":""} style={{width:"100%",boxSizing:"border-box",borderRadius:10,border:"1.5px solid #E5E7EB",padding:"9px 12px",fontSize:13,outline:"none",color:"#111827",background:"#fff"}}/>
           </div>
         ))}
+        {form.type !== "transfer" && (
         <div style={{marginBottom:14}}>
           <label style={{fontSize:10,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Category</label>
           <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} style={{width:"100%",boxSizing:"border-box",borderRadius:10,border:"1.5px solid #E5E7EB",padding:"9px 12px",fontSize:13,outline:"none",color:"#111827",background:"#fff"}}>
             {(form.type==="income"?CI:CE).map(c=><option key={c}>{c}</option>)}
           </select>
         </div>
+        )}
 		{form.type !== "transfer" && (
 <div style={{marginBottom:14}}>
   <label style={{fontSize:10,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Payment Mode</label>
