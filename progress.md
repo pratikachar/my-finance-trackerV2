@@ -4,46 +4,44 @@
 
 ```
 fintrack/
-├── index5.html            # Main app (v5) - React SPA
+├── index5.html            # Main app v5 (stable)
+├── index6.html            # Main app v6 (new features)
 ├── test-experiments.html  # Test/experiment playground
 └── progress.md            # This file
 ```
 
-## Current Status (v5)
+## Current Status (v6)
 
-### ✅ Completed Features
-- Dashboard with financial health score, monthly summary, smart insights
+### ✅ Features (v6 adds on v5)
+- **Dark mode** toggle with CSS variables, persisted to localStorage
+- **Undo** — last 10 state changes can be undone via header button
+- **Search** entries by note or tag text
+- **Tags** — comma-separated tags on each entry, searchable
+- **Category management** — add/rename/delete income & expense categories in Settings tab
+- **Budget rollover** — unused budget from last month carries forward
+- **Recurring transactions** — daily/weekly/monthly auto-generated entries; managed in Auto tab
+- **Settings tab** — manage categories
+- **Auto tab** — manage recurring entries with pause/resume
+
+### v5 Features (carried forward)
+- Dashboard with financial health score, summary, smart insights
 - Income/Expense tracking with category breakdown
-- Cash & Bank/UPI balance tracking with mode badge on each entry
-- Transfer between Bank/UPI and Cash (bank withdrawal/deposit)
-- Monthly, weekly (custom week picker), daily (custom date picker) views
-- Advanced filtering (type, payment mode, category)
-- Budget management with limit alerts
+- Cash & Bank/UPI balance tracking with mode badge
+- Transfer between Bank/UPI and Cash
+- Daily (date picker), Weekly (week picker), Monthly views
+- Advanced filtering (type, payment mode, category, search)
+- Budget management with rollover & alerts
 - Savings goals tracker
 - Investment guidance (SIP calc, asset allocation, instrument cards, emergency fund)
 - Export CSV/JSON, Import JSON backup
-- Custom SVG chart system (bar, horizontal bar, line, donut/pie)
-- Mobile-responsive with bottom tab navigation
-- Persistent localStorage
+- Custom SVG chart system
+- Mobile-responsive
 
-### 🔬 Bug Fixes (Current Session)
-1. **Edit mode preserves payment mode** — openEdit now copies `mode`, `fromMode`, `toMode` from entry
-2. **Analytics shows all expense categories** — removed `.slice(0,6)` limit
-3. **Transfer feature added** — new entry type "transfer" with from/to mode selectors; auto-creates paired transferOut/transferIn entries, updates balances correctly
-4. **Daily view has date picker** — select any date; Weekly view has week-start date picker
-
-### 🔜 Suggested Next Features
-- Dark mode toggle
-- Recurring transactions (auto-add monthly/ weekly entries)
+### 🔜 Future Ideas
 - PWA offline support (service worker + manifest)
 - Multi-currency support
-- Cloud backup / sync (Firebase or localStorage → GitHub)
-- Pie chart color legend
+- Cloud backup / sync
 - Export to PDF
-- Tag/label system for entries
-- Search/full-text filter on notes
-- Undo last action
-- Category management (add/rename/delete categories)
-- Budget rollover (unused budget carries to next month)
 - Bill reminders / due date tracking
-- Net worth tracker (include assets like property, investments, loans)
+- Net worth tracker
+- Recurring auto-pause when balance is low
