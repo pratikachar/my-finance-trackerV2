@@ -2,10 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <title>Personal Finance Tracker</title>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="format-detection" content="telephone=no"/>
+  <title>FinTrack - Finance Tracker</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -310,6 +312,14 @@ function App() {
     setState(prev);
     saveData(prev);
     setUndoStack(rest);
+    showToast("Undo successful");
+  }
+
+  const [toast, setToast] = React.useState(null);
+  function showToast(msg, duration=2800){
+    setToast(msg);
+    if(window.toastTimer) clearTimeout(window.toastTimer);
+    window.toastTimer=setTimeout(()=>setToast(null),duration);
   }
 
   const [state, setState] = useState(() => {
@@ -498,6 +508,7 @@ const incCatData = Object.entries(incCatMap).map(([name, value]) => ({ name, val
       if(editId!==null) upd(s=>({entries:s.entries.map(e=>e.id===editId?{...entry,id:editId}:e)}));
       else upd(s=>({entries:[...s.entries,{...entry,id:s.nextId}],nextId:s.nextId+1}));
     }
+    showToast(editId!==null?"Entry updated":"Entry added");
     setShowForm(false);
   }
   function delEntry(id){
@@ -521,47 +532,39 @@ const incCatData = Object.entries(incCatMap).map(([name, value]) => ({ name, val
   function updBudget(cat,v){upd(s=>({budgets:{...s.budgets,[cat]:Number(v)||0}}));}
 async function exportCSV(){
   const rows=[["Date","Type","Amount","Category","Note","Mode"],...entries.map(e=>[e.date,e.type,e.amount,e.category,`"${e.note||""}"`,`"${e.mode||"Bank/UPI"}"`])]; 
-  await dl(rows.map(r=>r.join(",")).join("\n"),"finance_export.csv","text/csv;charset=utf-8"); 
+  const todayStr=today.toISOString().slice(0,10);
+  await dl(rows.map(r=>r.join(",")).join("\n"),`FinTrack_AllEntries_${todayStr}.csv`,"text/csv;charset=utf-8"); 
 }
 
 async function exportJSON(){
-  await dl(JSON.stringify(state,null,2),"finance_backup.json","application/json;charset=utf-8");
+  const todayStr=today.toISOString().slice(0,10);
+  await dl(JSON.stringify(state,null,2),`FinTrack_Backup_${todayStr}.json`,"application/json;charset=utf-8");
 }
 
-function importJSON(file){const r=new FileReader(); r.onload=e=>{try{const d=JSON.parse(e.target.result);setState(s=>{const ns={...s,...d};saveData(ns);return ns;});}catch{alert("Invalid backup file.");}}; r.readAsText(file); }
+function importJSON(file){const r=new FileReader(); r.onload=e=>{try{const d=JSON.parse(e.target.result);setState(s=>{const ns={...s,...d};saveData(ns);showToast("Backup restored successfully");return ns;});}catch{showToast("Invalid backup file. Select a .json file exported from FinTrack.");}}; r.readAsText(file); }
 function resetAll(){
   setConf({
     msg: "Reset ALL data? This cannot be undone.",
-    onConfirm: () => { setState(DEF_S); saveData(DEF_S); setConf(null); }
+    onConfirm: () => { setState(DEF_S); saveData(DEF_S); setConf(null); showToast("All data reset"); }
   });
 }
 async function dl(content, name, type) {
-  // Use a proper File object which Android uses to extract the true filename
-  const file = new File([content], name, { type: type }); 
-  
+  const file = new File([content], name, { type }); 
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
-      await navigator.share({
-        files: [file],
-        title: name,
-        text: "Finance Tracker Export"
-      });
+      await navigator.share({ files: [file], title: name, text: "Finance Tracker Export" });
+      showToast(`\u2705 ${name} shared successfully`);
       return;
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-    }
+    } catch (err) { if (err.name === 'AbortError') return; }
   }
-  
-
-  // ... (rest of the desktop fallback remains exactly the same)
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  showToast(isMobile ? `\u2705 ${name} saved \u2014 check your Downloads folder` : `\u2705 ${name} downloaded`);
 }
 
  
@@ -584,7 +587,7 @@ async function dl(content, name, type) {
   const renderDashboard = () => (
     <div>
       {/* Health Score */}
-      <Card style={{marginBottom:12,background:`linear-gradient(135deg,${healthLevel.bg},#fff)`}}>
+      <Card style={{marginBottom:12,background:`linear-gradient(135deg,${healthLevel.bg},var(--card-bg))`}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{width:36,height:36,borderRadius:10,background:healthLevel.c+"22",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -612,23 +615,25 @@ async function dl(content, name, type) {
           {l:"Net Savings",v:net,c:net>=0?"#8B5CF6":"#EF4444",bg:net>=0?"#EDE9FE":"#FEF2F2",ico:"zap"},
           {l:"Monthly Target",v:monthlyTarget,c:"#F59E0B",bg:"#FFFBEB",ico:"target"},
         ].map(c=>(
-          <Card key={c.l} style={{background:c.bg,border:"none"}}>
+          <div key={c.l} onClick={()=>{setViewM({y:today.getFullYear(),m:today.getMonth()});setTab("tracker");}} style={{cursor:"pointer"}}>
+          <Card style={{background:c.bg,border:"none"}}>
             <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
               <Ico n={c.ico} s={14} c={c.c}/><p style={{margin:0,fontSize:10,color:c.c,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>{c.l}</p>
             </div>
             <p style={{margin:0,fontSize:19,fontWeight:700,color:c.c}}>{INR(c.v)}</p>
           </Card>
+          </div>
         ))}
       </div>
-{/* Cash & Bank Balances display */}
+      {/* Cash & Bank Balances display */}
 <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12}}>
-  <Card style={{padding:"10px 12px", background:"#f8fafc"}}>
-    <p style={{margin:0, fontSize:10, color:"#475569", fontWeight:600}}>🏦 BANK / UPI BALANCE</p>
-    <p style={{margin:"4px 0 0", fontSize:16, fontWeight:700, color:"#1e3a8a"}}>{INR(assetBalances["Bank/UPI"])}</p>
+  <Card style={{padding:"10px 12px", background:dark?"#1e293b":"#f8fafc"}}>
+    <p style={{margin:0, fontSize:10, color:dark?"#94a3b8":"#475569", fontWeight:600}}>BANK / UPI BALANCE</p>
+    <p style={{margin:"4px 0 0", fontSize:16, fontWeight:700, color:dark?"#60a5fa":"#1e3a8a"}}>{INR(assetBalances["Bank/UPI"])}</p>
   </Card>
-  <Card style={{padding:"10px 12px", background:"#f8fafc"}}>
-    <p style={{margin:0, fontSize:10, color:"#475569", fontWeight:600}}>💵 CASH IN HAND</p>
-    <p style={{margin:"4px 0 0", fontSize:16, fontWeight:700, color:"#b45309"}}>{INR(assetBalances["Cash"])}</p>
+  <Card style={{padding:"10px 12px", background:dark?"#1e293b":"#f8fafc"}}>
+    <p style={{margin:0, fontSize:10, color:dark?"#94a3b8":"#475569", fontWeight:600}}>CASH IN HAND</p>
+    <p style={{margin:"4px 0 0", fontSize:16, fontWeight:700, color:dark?"#fbbf24":"#b45309"}}>{INR(assetBalances["Cash"])}</p>
   </Card>
 </div>
       {/* Monthly target editor */}
@@ -697,16 +702,17 @@ async function dl(content, name, type) {
       {/* Month nav + views */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
-          <button onClick={()=>setViewM(({y,m})=>m===0?{y:y-1,m:11}:{y,m:m-1})} style={{width:30,height:30,borderRadius:8,border:"1px solid #E5E7EB",background:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-            <Ico n="cl" s={14} c="#374151"/>
+          <button onClick={()=>setViewM(({y,m})=>m===0?{y:y-1,m:11}:{y,m:m-1})} style={{width:32,height:32,borderRadius:8,border:"1px solid var(--card-border)",background:"var(--card-bg)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <Ico n="cl" s={14} c="var(--text)"/>
           </button>
-          <span style={{fontSize:14,fontWeight:600,minWidth:110,textAlign:"center",color:"#1e1b4b"}}>
+          <span style={{fontSize:14,fontWeight:600,minWidth:110,textAlign:"center",color:"var(--text)"}}>
             {FM[viewM.m]} {viewM.y}
             {isNow&&<span style={{fontSize:9,background:"#8B5CF6",color:"#fff",borderRadius:99,padding:"1px 6px",marginLeft:5}}>now</span>}
           </span>
-          <button onClick={()=>setViewM(({y,m})=>m===11?{y:y+1,m:0}:{y,m:m+1})} style={{width:30,height:30,borderRadius:8,border:"1px solid #E5E7EB",background:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-            <Ico n="cr" s={14} c="#374151"/>
+          <button onClick={()=>setViewM(({y,m})=>m===11?{y:y+1,m:0}:{y,m:m+1})} style={{width:32,height:32,borderRadius:8,border:"1px solid var(--card-border)",background:"var(--card-bg)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <Ico n="cr" s={14} c="var(--text)"/>
           </button>
+          {!isNow&&<button onClick={()=>{setViewM({y:today.getFullYear(),m:today.getMonth()});setSelDate(today.toISOString().slice(0,10));}} style={{fontSize:10,padding:"4px 8px",borderRadius:6,border:"1px solid #8B5CF6",background:"#EDE9FE",color:"#8B5CF6",cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>Today</button>}
         </div>
         <div style={{display:"flex",gap:5}}>
           {[["daily","#F97316"],["weekly","#3B82F6"],["monthly","#8B5CF6"]].map(([v,c])=>(
@@ -718,7 +724,7 @@ async function dl(content, name, type) {
 <Card style={{marginBottom: 12, padding: "10px 12px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8}}>
   <div>
     <label style={{fontSize:9, fontWeight:700, color:"#6B7280", display:"block", marginBottom:4}}>TYPE</label>
-    <select value={filterType} onChange={e=>{setFilterType(e.target.value); setFilterCat("all");}} style={{width:"100%", padding:"6px", fontSize:12, borderRadius:6, border:"1px solid #E5E7EB"}}>
+    <select value={filterType} onChange={e=>{setFilterType(e.target.value); setFilterCat("all");}} style={{width:"100%", padding:"6px", fontSize:12, borderRadius:6, border:"1px solid var(--input-border)",background:"var(--input-bg)",color:"var(--text)"}}>
       <option value="all">All Types</option>
       <option value="income">Income Only</option>
       <option value="expense">Expenses Only</option>
@@ -744,7 +750,7 @@ async function dl(content, name, type) {
   </div>
   <div>
     <label style={{fontSize:9, fontWeight:700, color:"#6B7280", display:"block", marginBottom:4}}>SEARCH</label>
-    <input type="text" value={filterSearch} onChange={e=>setFilterSearch(e.target.value)} placeholder="notes or tags..." style={{width:"100%", padding:"6px", fontSize:12, borderRadius:6, border:"1px solid #E5E7EB", background:"var(--input-bg)", color:"var(--text)", outline:"none", boxSizing:"border-box"}}/>
+    <input type="text" value={filterSearch} onChange={e=>setFilterSearch(e.target.value)} placeholder="notes or tags..." style={{width:"100%", padding:"6px", fontSize:12, borderRadius:6, border:"1px solid var(--input-border)", background:"var(--input-bg)", color:"var(--text)", outline:"none", boxSizing:"border-box"}}/>
   </div>
 </Card>
 
@@ -752,13 +758,13 @@ async function dl(content, name, type) {
       {view === "daily" && (
         <Card style={{marginBottom:12,padding:"10px 12px"}}>
           <label style={{fontSize:9,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Select Date</label>
-          <input type="date" value={selDate} onChange={e=>setSelDate(e.target.value)} style={{width:"100%",boxSizing:"border-box",borderRadius:8,border:"1.5px solid #E5E7EB",padding:"8px 10px",fontSize:13,outline:"none"}}/>
+          <input type="date" value={selDate} onChange={e=>setSelDate(e.target.value)} style={{width:"100%",boxSizing:"border-box",borderRadius:8,border:"1.5px solid var(--input-border)",padding:"8px 10px",fontSize:13,outline:"none",background:"var(--input-bg)",color:"var(--text)"}}/>
         </Card>
       )}
       {view === "weekly" && (
         <Card style={{marginBottom:12,padding:"10px 12px"}}>
           <label style={{fontSize:9,fontWeight:700,color:"#6B7280",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Week Starting (Mon)</label>
-          <input type="date" value={selWeekStart} onChange={e=>setSelWeekStart(e.target.value)} style={{width:"100%",boxSizing:"border-box",borderRadius:8,border:"1.5px solid #E5E7EB",padding:"8px 10px",fontSize:13,outline:"none"}}/>
+          <input type="date" value={selWeekStart} onChange={e=>setSelWeekStart(e.target.value)} style={{width:"100%",boxSizing:"border-box",borderRadius:8,border:"1.5px solid var(--input-border)",padding:"8px 10px",fontSize:13,outline:"none",background:"var(--input-bg)",color:"var(--text)"}}/>
         </Card>
       )}
 
@@ -783,7 +789,7 @@ async function dl(content, name, type) {
       {/* Entry list */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
         <p style={{margin:0,fontSize:11,fontWeight:600,color:"#6B7280",textTransform:"uppercase",letterSpacing:"0.07em"}}>Entries ({filtered.length})</p>
-        {filtered.length>0&&<button onClick={async ()=>{const rows=[["Date","Type","Amount","Category","Note","Mode"],...filtered.map(e=>[e.date,e.type,e.amount,e.category,`"${e.note||""}"`,`"${e.mode||"Bank/UPI"}"`])]; await dl(rows.map(r=>r.join(",")).join("\n"),`transactions_${curMk}.csv`,"text/csv;charset=utf-8");}} style={{fontSize:11,color:"#3B82F6",background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontWeight:500}}> <Ico n="dl" s={12} c="#3B82F6"/> Month CSV </button>}
+        {filtered.length>0&&<button onClick={async ()=>{const rows=[["Date","Type","Amount","Category","Note","Mode"],...filtered.map(e=>[e.date,e.type,e.amount,e.category,`"${e.note||""}"`,`"${e.mode||"Bank/UPI"}"`])]; await dl(rows.map(r=>r.join(",")).join("\n"),`FinTrack_${curMk}.csv`,"text/csv;charset=utf-8");}} style={{fontSize:11,color:"#3B82F6",background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontWeight:500}}> <Ico n="dl" s={12} c="#3B82F6"/> Month CSV </button>}
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         {filtered.length===0?(
@@ -823,8 +829,8 @@ async function dl(content, name, type) {
         {incCatData.map(c=>(
           <div key={c.name} onClick={()=>{setFilterType("income"); setFilterCat(c.name); setTab("tracker");}} style={{display:"flex",alignItems:"center",gap:6, cursor:"pointer"}}>
             <div style={{width:8,height:8,borderRadius:2,background:CC[c.name]||"#9CA3AF",flexShrink:0}}/>
-            <span style={{fontSize:11,color:"#374151",flex:1}}>{c.name} 🔍</span>
-            <span style={{fontSize:11,fontWeight:600,color:"#374151"}}>{INR(c.value)}</span>
+            <span style={{fontSize:11,color:"var(--text)",flex:1}}>{c.name} 🔍</span>
+            <span style={{fontSize:11,fontWeight:600,color:"var(--text)"}}>{INR(c.value)}</span>
           </div>
         ))}
       </div>
@@ -867,8 +873,8 @@ async function dl(content, name, type) {
       <Card>
         <p style={{margin:"0 0 10px",fontSize:11,fontWeight:600,color:"#6B7280",textTransform:"uppercase",letterSpacing:"0.07em"}}>Monthly summary</p>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {monthlyData.map(m=>{const s=m.inc-m.exp;return(
-            <div key={m.month} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#F9FAFB",borderRadius:8}}>
+          {monthlyData.map((m,i)=>{const s=m.inc-m.exp;return(
+            <div key={m.month} onClick={()=>{const d=new Date(today.getFullYear(),today.getMonth()-(5-i),1);setViewM({y:d.getFullYear(),m:d.getMonth()});setTab("tracker");}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"var(--card-bg)",borderRadius:8,cursor:"pointer"}}>
               <div style={{width:36,height:36,borderRadius:8,background:"#EDE9FE",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 <span style={{fontSize:10,fontWeight:700,color:"#8B5CF6"}}>{m.month}</span>
               </div>
@@ -893,7 +899,7 @@ async function dl(content, name, type) {
     const lastMonthKey=mk(today.getFullYear()- (today.getMonth()===0?1:0), today.getMonth()===0?11:today.getMonth()-1);
     return (
       <div>
-        <Card style={{marginBottom:12,background:"linear-gradient(135deg,#F0FDF4,#fff)"}}>
+        <Card style={{marginBottom:12,background:dark?"linear-gradient(135deg,#064e3b,var(--card-bg))":"linear-gradient(135deg,#F0FDF4,#fff)"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
             <Ico n="info" s={14} c="#10B981"/>
             <p style={{margin:0,fontSize:12,color:"#374151"}}>Set monthly spending limits per category. Unused budget rolls over.</p>
@@ -1278,8 +1284,8 @@ async function dl(content, name, type) {
                     <span style={{color:pm.net>=0?"#8B5CF6":"#EF4444",fontWeight:700}}>{pm.net>=0?"+":""}{INR(pm.net)}</span>
                   </p>
                 </div>
-                <button onClick={()=>{setViewM({y:pm.y,m:pm.m});setTab("tracker");setView("monthly");setShowHist(false);}} style={{fontSize:11,padding:"5px 10px",cursor:"pointer",borderRadius:8,border:"1px solid #E5E7EB",background:"#fff",color:"#374151",fontWeight:600}}>View</button>
-                <button onClick={async ()=>{const rows=[["Date","Type","Amount","Category","Note","Mode"],...pm.entries.map(e=>[e.date,e.type,e.amount,e.category,`"${e.note||""}"`,`"${e.mode||"Bank/UPI"}"`])]; await dl(rows.map(r=>r.join(",")).join("\n"),`transactions_${pm.key}.csv`,"text/csv;charset=utf-8");}} style={{fontSize:11,padding:"5px 8px",cursor:"pointer",borderRadius:8,border:"1px solid #E5E7EB",background:"#fff",display:"flex",alignItems:"center",gap:4}}> <Ico n="dl" s={12} c="#6B7280"/> CSV </button>
+                <button onClick={()=>{setViewM({y:pm.y,m:pm.m});setTab("tracker");setView("monthly");setShowHist(false);}} style={{fontSize:11,padding:"5px 10px",cursor:"pointer",borderRadius:8,border:"1px solid var(--card-border)",background:"var(--card-bg)",color:"var(--text)",fontWeight:600}}>View</button>
+                <button onClick={async ()=>{const rows=[["Date","Type","Amount","Category","Note","Mode"],...pm.entries.map(e=>[e.date,e.type,e.amount,e.category,`"${e.note||""}"`,`"${e.mode||"Bank/UPI"}"`])]; await dl(rows.map(r=>r.join(",")).join("\n"),`FinTrack_${pm.key}.csv`,"text/csv;charset=utf-8");}} style={{fontSize:11,padding:"5px 8px",cursor:"pointer",borderRadius:8,border:"1px solid var(--card-border)",background:"var(--card-bg)",color:"var(--text-sec)",display:"flex",alignItems:"center",gap:4}}> <Ico n="dl" s={12} c="#6B7280"/> CSV </button>
               </div>
             ))}
           </div>
@@ -1294,7 +1300,7 @@ async function dl(content, name, type) {
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1.1rem"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{width:36,height:36,borderRadius:10,background:"#DBEAFE",display:"flex",alignItems:"center",justifyContent:"center"}}><Ico n="dl" s={18} c="#3B82F6"/></div>
-            <p style={{margin:0,fontWeight:700,fontSize:16,color:"#1e1b4b"}}>Data management</p>
+            <p style={{margin:0,fontWeight:700,fontSize:16,color:"var(--text)"}}>Data management</p>
           </div>
           <CloseBtn onClick={()=>setShowData(false)}/>
         </div>
@@ -1302,7 +1308,7 @@ async function dl(content, name, type) {
           {[
             {ico:"dl",label:"Export all entries as CSV",sub:"Download spreadsheet",c:"#3B82F6",bg:"#EFF6FF",fn:exportCSV},
             {ico:"dl",label:"Export full backup (JSON)",sub:"Save all app data",c:"#8B5CF6",bg:"#EDE9FE",fn:exportJSON},
-            {ico:"ul",label:"Import backup (JSON)",sub:"Restore from backup file",c:"#10B981",bg:"#F0FDF4",fn:()=>fileRef.current?.click()},
+            {ico:"ul",label:"Import backup (JSON)",sub:"Select a FinTrack_Backup_*.json file from your device",c:"#10B981",bg:"#F0FDF4",fn:()=>fileRef.current?.click()},
             {ico:"reset",label:"Reset all data",sub:"Permanently delete everything",c:"#EF4444",bg:"#FEF2F2",fn:resetAll},
           ].map(({ico,label,sub,c,bg,fn})=>(
             <button key={label} onClick={fn} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:12,background:bg,border:"none",cursor:"pointer",textAlign:"left",width:"100%"}}>
@@ -1366,20 +1372,29 @@ async function dl(content, name, type) {
 	  {/* Custom Confirmation Popup */}
       {conf && (
         <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:20}}>
-          <div style={{background:"#fff",borderRadius:16,padding:20,width:"100%",maxWidth:320,boxShadow:"0 10px 25px rgba(0,0,0,0.1)",textAlign:"center"}}>
-            <h4 style={{margin:"0 0 10px 0",color:"#111827",fontSize:16,fontWeight:600}}>Confirm Action</h4>
-            <p style={{margin:"0 0 20px 0",color:"#4B5563",fontSize:14,lineHeight:"20px"}}>{conf.msg}</p>
+          <div style={{background:"var(--card-bg)",borderRadius:16,padding:20,width:"100%",maxWidth:320,boxShadow:"0 10px 25px rgba(0,0,0,0.1)",textAlign:"center"}}>
+            <h4 style={{margin:"0 0 10px 0",color:"var(--text)",fontSize:16,fontWeight:600}}>Confirm Action</h4>
+            <p style={{margin:"0 0 20px 0",color:"var(--text-sec)",fontSize:14,lineHeight:"20px"}}>{conf.msg}</p>
             <div style={{display:"flex",gap:12}}>
-              <button onClick={() => setConf(null)} style={{flex:1,padding:"10px",borderRadius:10,border:"1px solid #E5E7EB",background:"#fff",color:"#374151",fontWeight:500,cursor:"pointer",fontSize:14}}>Cancel</button>
+              <button onClick={() => setConf(null)} style={{flex:1,padding:"10px",borderRadius:10,border:"1px solid var(--card-border)",background:"var(--card-bg)",color:"var(--text)",fontWeight:500,cursor:"pointer",fontSize:14}}>Cancel</button>
               <button onClick={conf.onConfirm} style={{flex:1,padding:"10px",borderRadius:10,border:"none",background:"#EF4444",color:"#fff",fontWeight:500,cursor:"pointer",fontSize:14}}>Confirm</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Toast notification */}
+      {toast && (
+        <div style={{position:"fixed",bottom:80,left:16,right:16,zIndex:99999,display:"flex",justifyContent:"center",pointerEvents:"none"}}>
+          <div style={{background:dark?"#334155":"#1e1b4b",color:"#fff",padding:"12px 20px",borderRadius:12,fontSize:13,fontWeight:500,boxShadow:"0 8px 30px rgba(0,0,0,0.2)",textAlign:"center",maxWidth:"90%"}}>
+            {toast}
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
-      <div style={{textAlign:"center",padding:"1rem 0 1.5rem",borderTop:"1px solid #E5E7EB",marginTop:"1rem"}}>
-        <p style={{margin:0,fontSize:11,color:"#CBD5E1",letterSpacing:"0.06em"}}>Created by <span style={{fontWeight:600,color:"#A5B4FC"}}>PA</span></p>
+      <div style={{textAlign:"center",padding:"1rem 0 1.5rem",borderTop:"1px solid var(--card-border)",marginTop:"1rem"}}>
+        <p style={{margin:0,fontSize:11,color:"var(--text-mut)",letterSpacing:"0.06em"}}>FinTrack v6</p>
       </div>
     </div>
   );
