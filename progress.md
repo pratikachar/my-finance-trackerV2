@@ -56,6 +56,10 @@ Dashboard · Tracker · Analytics · Budget · Goals · Loans · NW · Invest ·
 - **NW tab crash**: `React.useState` inside conditional render function violated rules of hooks → moved `editNwId`/`editLoanId` state to App level.
 - **Forgot PIN reset silent**: confirmation popup `zIndex:9999` was behind PIN overlay `zIndex:99999` → raised confirm to `zIndex:100000`.
 - **Quick-glance partial**: `INR`/`sINR` now honour global `window.__hideAmt` so ALL amounts hide.
+- **NW dropdown not bound to type**: dropdown showed all asset+liability options regardless of toggle, and "Other Liability" appeared twice (duplicate). Now filtered by selected type; switching toggle clears the name; "+ Other (custom name)" reveals a text input. Option arrays trimmed of embedded "Other" entries.
+- **Dead `renderRecurring` removed**: orphaned function (no tab rendered it) contained hooks → eliminated hook-smell.
+- **Unified reminders**: `reminders` useMemo at App level computes SIP-due (±3d of contribution day, month-boundary aware) and EMI-due (≤7d of nextDate) → shown as Dashboard "Due Soon" banner, per-tab banners (Loans/NW), and a toast on app open. Global `calcEMI` helper added.
+- Added `bell` SVG icon for reminder UI.
 
 ## Verified
 - Braces/parens balanced; no hooks inside render functions; loads as standalone APK via inline manifest.

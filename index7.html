@@ -38,6 +38,8 @@ const FM  = ["January","February","March","April","May","June","July","August","
 window.__hideAmt = false;
 const INR = n => window.__hideAmt ? "₹•••••" : "₹"+Math.abs(Number(n)||0).toLocaleString("en-IN",{maximumFractionDigits:0});
 const sINR = n => window.__hideAmt ? "₹•••••" : (Number(n)<0?"-":"")+INR(n);
+// Global EMI calculator (used by Loans tab & reminders)
+const calcEMI = (p,r,n) => { if(!p||n<=0) return 0; if(r===0) return Math.round(p/n); const mr=r/12/100; return Math.round(p*mr*Math.pow(1+mr,n)/(Math.pow(1+mr,n)-1)); };
 const today = new Date();
 const fom  = (y,m) => `${y}-${String(m+1).padStart(2,"0")}-01`;
 const mk   = (y,m) => `${y}-${String(m+1).padStart(2,"0")}`;
@@ -144,6 +146,7 @@ const Ico = ({n,s=18,c="currentColor"}) => {
     building:<path d="M3 21H21M7 21V7A2 2 0 0 1 9 5H15A2 2 0 0 1 17 7V21M11 9H13M11 13H13M11 17H13" stroke={c} strokeWidth="1.7" strokeLinecap="round" fill="none"/>,
     scale:  <><path d="M12 2L12 22M6 8L14 8M6 12L14 12M6 16L10 16" stroke={c} strokeWidth="1.7" strokeLinecap="round" fill="none"/><path d="M18 16L16 12M16 12L14 16M16 12L16 22" stroke={c} strokeWidth="1.5" strokeLinecap="round" fill="none"/></>,
     debt:   <><path d="M8 7L16 7M8 11L16 11M8 15L13 15" stroke={c} strokeWidth="1.7" strokeLinecap="round"/><circle cx="18" cy="15" r="3" stroke={c} strokeWidth="1.5" fill="none"/><text x="18" y="16.5" fontSize="10" textAnchor="middle" fill={c} fontWeight="700">%</text><path d="M4 4V20" stroke={c} strokeWidth="1.7" strokeLinecap="round"/></>,
+    bell:   <><path d="M18 8A6 6 0 0 0 6 8C6 15 4 16 4 16H20C20 16 18 15 18 8Z" stroke={c} strokeWidth="1.7" strokeLinejoin="round" fill="none"/><path d="M10 20A2 2 0 0 0 14 20" stroke={c} strokeWidth="1.7" strokeLinecap="round"/><path d="M12 2V4" stroke={c} strokeWidth="1.7" strokeLinecap="round"/></>,
     zap:    <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke={c} strokeWidth="1.7" strokeLinejoin="round" fill="none"/>,
   };
   return (
@@ -405,6 +408,25 @@ const [filterSearch, setFilterSearch] = useState("");
   function saveNetWorth(l){setNetWorthItems(l);localStorage.setItem("fintrack_networth",JSON.stringify(l));}
   const netWorthTotal = netWorthItems.reduce((a,i)=>a+(i.type==="asset"?i.value:-i.value),0);
 
+  // 🔔 Unified reminders (SIP due + EMI due) — shown on Dashboard + per-tab
+  const reminders = useMemo(() => {
+    const list = [];
+    const now = new Date();
+    netWorthItems.filter(i=>i.type==="asset"&&i.monthly>0&&i.startDate).forEach(i=>{
+      const day = new Date(i.startDate).getDate();
+      let d = new Date(now.getFullYear(), now.getMonth(), day);
+      if(d < now) d = new Date(now.getFullYear(), now.getMonth()+1, day);
+      const diff = Math.ceil((d - now) / 86400000);
+      if(diff>=0 && diff<=3) list.push({type:"SIP",name:i.name,amt:i.monthly,date:d,days:diff});
+    });
+    loans.filter(l=>l.nextDate).forEach(l=>{
+      const d = new Date(l.nextDate);
+      const diff = Math.ceil((d - now) / 86400000);
+      if(diff>=0 && diff<=7) list.push({type:"EMI",name:l.name,amt:l.emi>0?l.emi:calcEMI(l.total,l.rate,l.tenure),date:d,days:diff});
+    });
+    return list.sort((a,b)=>a.days-b.days);
+  }, [netWorthItems, loans]);
+
   // 📦 Batch entry modal
   const [showBatch, setShowBatch] = useState(false);
   const [batchText, setBatchText] = useState("");
@@ -566,6 +588,18 @@ const incCatData = Object.entries(incCatMap).map(([name, value]) => ({ name, val
     }
   },[]);
 
+  // 🔔 Reminder toast on app open (in-app notification for due SIP/EMI)
+  React.useEffect(()=>{
+    if(reminders.length>0){
+      const t = setTimeout(()=>{
+        const sip = reminders.filter(r=>r.type==="SIP").length;
+        const emi = reminders.filter(r=>r.type==="EMI").length;
+        showToast(`🔔 ${reminders.length} reminder${reminders.length>1?"s":""}: ${emi} EMI, ${sip} SIP due soon — see Dashboard`);
+      }, 600);
+      return ()=>clearTimeout(t);
+    }
+  },[]);
+
   // 📱 PWA manifest (inline blob URL for APK wrapper)
   React.useEffect(()=>{
     if(document.querySelector("#pwa-manifest")) return;
@@ -689,6 +723,23 @@ async function dl(content, name, type) {
 
   const renderDashboard = () => (
     <div>
+      {/* 🔔 Unified reminders banner (in-app notifications) */}
+      {reminders.length>0 && (
+        <Card style={{marginBottom:12,background:"linear-gradient(135deg,#FEF3C7,var(--card-bg))",border:"1px solid #F59E0B"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <Ico n="bell" s={15} c="#D97706"/>
+            <p style={{margin:0,fontSize:13,fontWeight:700,color:"#D97706"}}>Due Soon ({reminders.length})</p>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            {reminders.map((r,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:12}}>
+                <span style={{color:"var(--text-sec)"}}>{r.type==="SIP"?"💰 SIP":"🏦 EMI"} · {r.name}</span>
+                <span style={{fontWeight:700,color:r.type==="SIP"?"#059669":"#DC2626"}}>{INR(r.amt)} {r.days===0?"today":`in ${r.days}d`}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
       {/* Health Score */}
       <Card style={{marginBottom:12,background:`linear-gradient(135deg,${healthLevel.bg},var(--card-bg))`}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
@@ -1258,67 +1309,6 @@ async function dl(content, name, type) {
     );
   };
 
-  const renderRecurring = () => {
-    const recurring = state.recurring||[];
-    const [showForm, setShowForm] = React.useState(false);
-    const [rForm, setRForm] = React.useState({active:true,freq:"monthly",startDate:today.toISOString().slice(0,10),nextDate:today.toISOString().slice(0,10),template:{type:"expense",amount:"",category:"Food",note:"",mode:"Bank/UPI"}});
-    function addRecurring(){
-      if(!rForm.template.amount||isNaN(Number(rForm.template.amount))||Number(rForm.template.amount)<=0)return;
-      upd(s=>({recurring:[...s.recurring||[],{...rForm,template:{...rForm.template,amount:parseFloat(rForm.template.amount)}}]}));
-      setShowForm(false);
-    }
-    return (
-      <div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <p style={{margin:0,fontSize:12,fontWeight:600,color:"var(--text-sec)",textTransform:"uppercase",letterSpacing:"0.07em"}}>Recurring entries ({recurring.length})</p>
-          <button onClick={()=>setShowForm(true)} style={{display:"flex",alignItems:"center",gap:5,fontSize:12,padding:"6px 14px",borderRadius:99,background:"#F97316",color:"#fff",border:"none",cursor:"pointer",fontWeight:600}}>+ Add auto</button>
-        </div>
-        {recurring.length===0?(
-          <div className="card" style={{background:"var(--card-bg)",borderRadius:14,border:"1px solid var(--card-border)",padding:"2rem",textAlign:"center",color:"var(--text-mut)"}}>
-            <p style={{margin:0,fontSize:13}}>No recurring entries. Add one for auto-generated transactions.</p>
-          </div>
-        ):recurring.map((r,i)=>(
-          <div key={i} style={{background:"var(--card-bg)",borderRadius:14,border:"1px solid var(--card-border)",padding:"1rem",marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <span style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{r.template.type==="income"?"+ ":"- "}{r.template.category} {r.template.note&&` · ${r.template.note}`}</span>
-              <button onClick={()=>{if(r.template.type!=="transfer")upd(s=>({recurring:s.recurring.filter((_,j)=>j!==i)}));}} style={{width:26,height:26,borderRadius:6,background:"#FEE2E2",border:"none",cursor:"pointer"}}><Ico n="x" s={11} c="#EF4444"/></button>
-            </div>
-            <div style={{display:"flex",gap:8,fontSize:11,color:"var(--text-mut)",flexWrap:"wrap"}}>
-              <span>{INR(r.template.amount)}</span><span>·</span>
-              <span>{r.freq}</span><span>·</span>
-              <span>Next: {r.nextDate||r.startDate}</span><span>·</span>
-              <span style={{color:r.active?"#10B981":"#EF4444"}}>{r.active?"Active":"Paused"}</span>
-            </div>
-            <button onClick={()=>upd(s=>({recurring:s.recurring.map((x,j)=>j===i?{...x,active:!x.active}:x)}))} style={{marginTop:6,fontSize:11,padding:"3px 10px",borderRadius:99,border:"1px solid var(--card-border)",background:"var(--card-bg)",color:"var(--text-sec)",cursor:"pointer"}}>{r.active?"Pause":"Resume"}</button>
-          </div>
-        ))}
-        {showForm && (
-          <div style={{position:"fixed",inset:0,background:"rgba(15,10,40,0.72)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:"1rem"}}>
-            <div style={{background:"var(--card-bg)",borderRadius:20,padding:"1.5rem",width:380,maxWidth:"100%"}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:"1rem"}}>
-                <p style={{margin:0,fontWeight:700,fontSize:16,color:"var(--text)"}}>New recurring entry</p>
-                <CloseBtn onClick={()=>setShowForm(false)}/>
-              </div>
-              <select value={rForm.freq} onChange={e=>setRForm(f=>({...f,freq:e.target.value}))} style={{width:"100%",borderRadius:10,border:"1.5px solid var(--input-border)",padding:"9px 12px",fontSize:13,marginBottom:10,background:"var(--input-bg)",color:"var(--text)"}}>
-                <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option>
-              </select>
-              <div style={{display:"flex",gap:8,marginBottom:10}}>
-                <button onClick={()=>setRForm(f=>({...f,template:{...f.template,type:"expense"}}))} style={{flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,fontSize:13,background:rForm.template.type==="expense"?"#EF4444":"var(--tab-bg)",color:rForm.template.type==="expense"?"#fff":"var(--text-mut)"}}>Expense</button>
-                <button onClick={()=>setRForm(f=>({...f,template:{...f.template,type:"income",category:"Salary"}}))} style={{flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,fontSize:13,background:rForm.template.type==="income"?"#10B981":"var(--tab-bg)",color:rForm.template.type==="income"?"#fff":"var(--text-mut)"}}>Income</button>
-              </div>
-              <input type="number" value={rForm.template.amount} onChange={e=>setRForm(f=>({...f,template:{...f.template,amount:e.target.value}}))} placeholder="Amount" style={{width:"100%",borderRadius:10,border:"1.5px solid var(--input-border)",padding:"9px 12px",fontSize:13,marginBottom:10,background:"var(--input-bg)",color:"var(--text)"}}/>
-              <select value={rForm.template.category} onChange={e=>setRForm(f=>({...f,template:{...f.template,category:e.target.value}}))} style={{width:"100%",borderRadius:10,border:"1.5px solid var(--input-border)",padding:"9px 12px",fontSize:13,marginBottom:10,background:"var(--input-bg)",color:"var(--text)"}}>
-                {(rForm.template.type==="income"?ic:ec).map(c=><option key={c}>{c}</option>)}
-              </select>
-              <input type="text" value={rForm.template.note} onChange={e=>setRForm(f=>({...f,template:{...f.template,note:e.target.value}}))} placeholder="Note" style={{width:"100%",borderRadius:10,border:"1.5px solid var(--input-border)",padding:"9px 12px",fontSize:13,marginBottom:10,background:"var(--input-bg)",color:"var(--text)"}}/>
-              <button onClick={addRecurring} style={{width:"100%",padding:"10px",borderRadius:10,border:"none",background:"#F97316",color:"#fff",fontWeight:700,cursor:"pointer",fontSize:14}}>Save recurring</button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   const renderSettings = () => (
     <div>
       <Card style={{marginBottom:12}}>
@@ -1375,12 +1365,12 @@ async function dl(content, name, type) {
     function calcEMI(p,r,n){if(r===0||n===0)return Math.round(p/n||0);const mr=r/12/100;return Math.round(p*mr*Math.pow(1+mr,n)/(Math.pow(1+mr,n)-1));}
     function openEditLoan(l){setLoanForm({name:l.name,total:l.total,rate:l.rate,tenure:l.tenure,emi:l.emi,paid:l.paid,nextDate:l.nextDate||""});setEditLoanId(l.id);setShowLoanForm(true);}
     // Check for upcoming EMI dates
-    const upcomingEMIs = loans.filter(l=>l.nextDate).filter(l=>{const d=new Date(l.nextDate);const diff=Math.ceil((d-new Date())/(86400000));return diff>=0&&diff<=7;});
+    const emiReminders = reminders.filter(r=>r.type==="EMI");
     return (
       <div>
-        {upcomingEMIs.length>0&&<Card style={{marginBottom:12,background:"#FFFBEB",border:"1px solid #F59E0B"}}>
-          <p style={{margin:0,fontSize:12,fontWeight:600,color:"#D97706"}}>📅 Upcoming EMI</p>
-          {upcomingEMIs.map(l=><p key={l.id} style={{margin:"4px 0 0",fontSize:11,color:"var(--text-sec)"}}>{l.name}: {INR(l.emi)} due on {l.nextDate}</p>)}
+        {emiReminders.length>0&&<Card style={{marginBottom:12,background:"#FFFBEB",border:"1px solid #F59E0B"}}>
+          <p style={{margin:0,fontSize:12,fontWeight:600,color:"#D97706"}}>🔔 EMI Due Soon</p>
+          {emiReminders.map((r,i)=><p key={i} style={{margin:"4px 0 0",fontSize:11,color:"var(--text-sec)"}}>{r.name}: {INR(r.amt)} {r.days===0?"today":`in ${r.days}d`} ({r.date.toISOString().slice(0,10)})</p>)}
         </Card>}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <p style={{margin:0,fontSize:12,fontWeight:600,color:"var(--text-sec)",textTransform:"uppercase",letterSpacing:"0.07em"}}>Loans & Debts ({loans.length})</p>
@@ -1436,8 +1426,10 @@ async function dl(content, name, type) {
 
   // ── NET WORTH TRACKER (dropdown types, SIP recurring, reminders) ────────
   const renderNetWorth = () => {
-    const NW_ASSET_OPTS = ["Savings A/C","PPF","EPF","Mutual Fund (SIP)","Stocks","Fixed Deposit","SGB / Gold","NPS","Real Estate","Vehicle","Emergency Fund","Other Asset"];
-    const NW_LIAB_OPTS = ["Credit Card","Personal Loan","Home Loan","Vehicle Loan","Education Loan","Other Liability"];
+    const NW_ASSET_OPTS = ["Savings A/C","PPF","EPF","Mutual Fund (SIP)","Stocks","Fixed Deposit","SGB / Gold","NPS","Real Estate","Vehicle","Emergency Fund"];
+    const NW_LIAB_OPTS = ["Credit Card","Personal Loan","Home Loan","Vehicle Loan","Education Loan"];
+    const nwOpts = nwForm.type==="asset"?NW_ASSET_OPTS:NW_LIAB_OPTS;
+    const nwIsCustom = nwForm.name && !nwOpts.includes(nwForm.name);
     function calcSIPValue(v,monthly,rate,start){
       if(!start) return v;
       const months = Math.max(0, Math.floor((new Date()-new Date(start))/(86400000*30.4)));
@@ -1453,7 +1445,7 @@ async function dl(content, name, type) {
       else saveNetWorth([...netWorthItems,item]);
       setNwForm({name:"",value:0,type:"asset",monthly:0,rate:7,startDate:""});
       setEditNwId(null);setShowNwForm(false);
-      showToast((nwForm.type==="asset"?"Asset":"Liability")+" added");
+      showToast((nwForm.type==="asset"?"Asset":"Liability")+(editNwId?" updated":" added"));
     }
     function delNwItem(id){setConf({msg:"Delete this item?",onConfirm:()=>{saveNetWorth(netWorthItems.filter(i=>i.id!==id));setConf(null);}});}
     function openEditNw(i){setNwForm({name:i.name,value:i.value,type:i.type,monthly:i.monthly||0,rate:i.rate||7,startDate:i.startDate||""});setEditNwId(i.id);setShowNwForm(true);}
@@ -1462,12 +1454,12 @@ async function dl(content, name, type) {
     const totalAssets = assets.reduce((a,i)=>a+calcSIPValue(i.value,i.monthly||0,i.rate||0,i.startDate),0);
     const totalLiab = liabilities.reduce((a,i)=>a+i.value,0);
     const nwTotal = totalAssets-totalLiab;
-    const sipDue = assets.filter(i=>i.monthly>0&&i.startDate).filter(i=>{const d=new Date(i.startDate);return d.getDate()>=today.getDate()-3&&d.getDate()<=today.getDate()+3;});
+    const sipReminders = reminders.filter(r=>r.type==="SIP");
     return (
       <div>
-        {sipDue.length>0&&<Card style={{marginBottom:12,background:"#EFF6FF",border:"1px solid #3B82F6"}}>
-          <p style={{margin:0,fontSize:12,fontWeight:600,color:"#1D4ED8"}}>📅 SIP / Contribution due</p>
-          {sipDue.map(i=><p key={i.id} style={{margin:"4px 0 0",fontSize:11,color:"var(--text-sec)"}}>{i.name}: {INR(i.monthly)} around the {new Date(i.startDate).getDate()}{(()=>{const n=new Date(i.startDate).getDate();return n===1?"st":n===2?"nd":n===3?"rd":"th";})()} of each month</p>)}
+        {sipReminders.length>0&&<Card style={{marginBottom:12,background:"#EFF6FF",border:"1px solid #3B82F6"}}>
+          <p style={{margin:0,fontSize:12,fontWeight:600,color:"#1D4ED8"}}>🔔 SIP / Contribution Due</p>
+          {sipReminders.map((r,i)=><p key={i} style={{margin:"4px 0 0",fontSize:11,color:"var(--text-sec)"}}>{r.name}: {INR(r.amt)} {r.days===0?"today":`in ${r.days}d`} ({r.date.toISOString().slice(0,10)})</p>)}
         </Card>}
         <Card style={{marginBottom:12,background:"linear-gradient(135deg,#D1FAE5,var(--card-bg))"}}>
           <p style={{margin:"0 0 4px",fontSize:11,color:"var(--text-sec)",textTransform:"uppercase",letterSpacing:"0.06em"}}>Net Worth</p>
@@ -1484,14 +1476,14 @@ async function dl(content, name, type) {
         {showNwForm&&<Card style={{marginBottom:12}}>
           <p style={{margin:"0 0 8px",fontSize:13,fontWeight:700,color:"var(--text)"}}>{editNwId?"Edit Item":"Add Item"}</p>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            <select value={nwForm.name} onChange={e=>setNwForm(f=>({...f,name:e.target.value}))} style={{padding:"8px 10px",borderRadius:8,border:"1.5px solid var(--input-border)",fontSize:12,outline:"none",color:"var(--text)",background:"var(--input-bg)"}}>
-              <option value="">Select type…</option>
-              <optgroup label="Assets">{(nwForm.type==="asset"?NW_ASSET_OPTS:[...NW_ASSET_OPTS,"Other Asset"]).map(o=><option key={o}>{o}</option>)}</optgroup>
-              <optgroup label="Liabilities">{(nwForm.type==="liability"?NW_LIAB_OPTS:[...NW_LIAB_OPTS,"Other Liability"]).map(o=><option key={o}>{o}</option>)}</optgroup>
+            <select value={nwOpts.includes(nwForm.name)?nwForm.name:"__custom"} onChange={e=>setNwForm(f=>({...f,name:e.target.value==="__custom"?"":e.target.value}))} style={{padding:"8px 10px",borderRadius:8,border:"1.5px solid var(--input-border)",fontSize:12,outline:"none",color:"var(--text)",background:"var(--input-bg)"}}>
+              <option value="">Select {nwForm.type} type…</option>
+              {nwOpts.map(o=><option key={o}>{o}</option>)}
+              <option value="__custom">+ Other (custom name)</option>
             </select>
-            {!(nwForm.type==="asset"?NW_ASSET_OPTS:NW_LIAB_OPTS).includes(nwForm.name)&&<input value={nwForm.name==="Other Asset"||nwForm.name==="Other Liability"?"":nwForm.name} onChange={e=>setNwForm(f=>({...f,name:e.target.value}))} placeholder="Or type custom name" style={{padding:"8px 10px",borderRadius:8,border:"1.5px solid var(--input-border)",fontSize:12,outline:"none",color:"var(--text)",background:"var(--input-bg)"}}/>}
+            {nwIsCustom&&<input value={nwForm.name} onChange={e=>setNwForm(f=>({...f,name:e.target.value}))} placeholder={"Custom "+(nwForm.type==="asset"?"asset":"liability")+" name"} style={{padding:"8px 10px",borderRadius:8,border:"1.5px solid var(--input-border)",fontSize:12,outline:"none",color:"var(--text)",background:"var(--input-bg)"}}/>}
             <div style={{display:"flex",gap:8}}>
-              {["asset","liability"].map(t=><button key={t} onClick={()=>setNwForm(f=>({...f,type:t}))} style={{flex:1,padding:"7px",borderRadius:8,border:"1.5px solid",fontSize:12,fontWeight:600,cursor:"pointer",textTransform:"capitalize",borderColor:nwForm.type===t?(t==="asset"?"#22C55E":"#EF4444"):"var(--card-border)",background:nwForm.type===t?(t==="asset"?"#F0FDF4":"#FEF2F2"):"var(--card-bg)",color:nwForm.type===t?"var(--text)":"var(--text-sec)"}}>{t}</button>)}
+              {["asset","liability"].map(t=><button key={t} onClick={()=>setNwForm(f=>({...f,type:t,name:""}))} style={{flex:1,padding:"7px",borderRadius:8,border:"1.5px solid",fontSize:12,fontWeight:600,cursor:"pointer",textTransform:"capitalize",borderColor:nwForm.type===t?(t==="asset"?"#22C55E":"#EF4444"):"var(--card-border)",background:nwForm.type===t?(t==="asset"?"#F0FDF4":"#FEF2F2"):"var(--card-bg)",color:nwForm.type===t?"var(--text)":"var(--text-sec)"}}>{t}</button>)}
             </div>
             <input type="number" value={nwForm.value||""} onChange={e=>setNwForm(f=>({...f,value:Number(e.target.value)}))} placeholder="Current Value (₹)" style={{padding:"8px 10px",borderRadius:8,border:"1.5px solid var(--input-border)",fontSize:12,outline:"none",color:"var(--text)",background:"var(--input-bg)"}}/>
             {nwForm.type==="asset"&&<>
