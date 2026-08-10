@@ -59,9 +59,25 @@ Dashboard · Tracker · Analytics · Budget · Goals · Loans · NW · Invest ·
 - **NW dropdown not bound to type**: dropdown showed all asset+liability options regardless of toggle, and "Other Liability" appeared twice (duplicate). Now filtered by selected type; switching toggle clears the name; "+ Other (custom name)" reveals a text input. Option arrays trimmed of embedded "Other" entries.
 - **Dead `renderRecurring` removed**: orphaned function (no tab rendered it) contained hooks → eliminated hook-smell.
 - **Unified reminders**: `reminders` useMemo at App level computes SIP-due (±3d of contribution day, month-boundary aware) and EMI-due (≤7d of nextDate) → shown as Dashboard "Due Soon" banner, per-tab banners (Loans/NW), and a toast on app open. Global `calcEMI` helper added.
+- **`calcEMI` was local inside renderLoans** (inaccessible from App-level code) but already existed as global `const` at top of file → removed the local copy; all callers use the global.
 - Added `bell` SVG icon for reminder UI.
 
+## NEW in v7 (continued)
+- **SIP separated from one-time assets**: NW tab now has two distinct sections — "Assets & Liabilities" (one-time items, no SIP fields, edit/pencil icon) and "SIP / Recurring Investments" (separate form with monthly + rate + startDate + current value). Two `showNwForm`/`showSipForm` modals. SIP projected value still counted toward total assets.
+- **Custom-name for assets/SIPs**: explicit `custom` boolean on each form; select uses `__custom` sentinel value reliably; text input appears only when custom selected.
+- **Auto-payment detection** (`checkAutoPayment`): called in `saveForm` for new expenses — matches amount to EMI (±2%, within -3/+7d window) → advances `nextDate`, increments `paid`; matches to SIP monthly amount (±2%, within ±3d) → sets `lastPaid` so reminder skips that cycle.
+- **Reminders skip paid SIP**: SIP reminders compute due date per cycle; if `item.lastPaid` shares the same month-year, the reminder is excluded that cycle.
+- **Splash screen**: plain HTML/CSS overlay (`#splash`) in `<body>` shows instantly before React loads; hidden by `useEffect` on mount (fade-out after 100ms). Improves perceived load time.
+- **Edit buttons in NW lists**: pencil icon added to all asset/liability/SIP cards alongside delete for inline editing.
+
+## NEW in v7 (continued)
+- **Loan "Completed" toggle**: each active loan card has a green checkmark button to mark the loan as completed (with dimmed card + strikethrough + "Completed" section) and a reopen button to restore it. Completed loans are excluded from EMI reminders (`!l.completed` in both App-level reminders and `checkAutoPayment`) and shown in a separate faded section at the bottom.
+- **SIP "Closed" toggle**: each active SIP card has a green checkmark button to mark it as closed (dimmed, strikethrough, separate "Closed SIPs" section) with a reopen button. Closed SIPs are excluded from projection (`calcSIPValue` not applied — only current `i.value` counted), excluded from SIP reminders (`!i.closed`), and skipped in auto-payment detection.
+
 ## Verified
+- `calcEMI` is a single global `const` (line ~47); no redeclaration.
+- `checkAutoPayment` uses `loans`, `netWorthItems`, `saveLoans`, `saveNetWorth`, `calcEMI` — all in App closure or global.
+- Splash overlay shows/hides correctly via `classList.add("hide")`.
 - Braces/parens balanced; no hooks inside render functions; loads as standalone APK via inline manifest.
 
 ## 🔜 Not planned (out of scope for local-only app)

@@ -381,6 +381,7 @@ const [filterSearch, setFilterSearch] = useState("");
   const [efP, setEfP]             = useState({monthly:30000});
   const [calcTab, setCalcTab]     = useState("sip");
   const [conf, setConf] = React.useState(null);
+  const [deferredPrompt, setDeferredPrompt] = React.useState(null);
   const [showCatForm, setShowCatForm] = React.useState(false);
   const [catForm, setCatForm] = React.useState({name:"",type:"expense"});
   const [editCat, setEditCat] = React.useState(null); // {type, index, buffer}
@@ -645,6 +646,16 @@ const incCatData = Object.entries(incCatMap).map(([name, value]) => ({ name, val
     link.id="pwa-manifest";link.rel="manifest";link.href=URL.createObjectURL(blob);
     document.head.appendChild(link);
   },[]);
+
+  // 📱 Service Worker registration + install prompt
+  React.useEffect(() => {
+    if("serviceWorker" in navigator){
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    }
+    const handler = e => { e.preventDefault(); setDeferredPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
 
   // ── HANDLERS ──────────────────────────────────────────────────────────────
  
@@ -1440,7 +1451,20 @@ async function dl(content, name, type) {
           <button onClick={()=>{setPinMode("set");setPinInput("");setPinConfirm("");setPinErr("");setLocked(true);}} style={{padding:"8px 16px",borderRadius:8,background:"#EDE9FE",color:"#8B5CF6",border:"none",cursor:"pointer",fontSize:12,fontWeight:600}}>Set PIN</button>
         )}
       </Card>
-
+      <Card style={{marginBottom:12}}>
+        <p style={{margin:"0 0 10px",fontSize:12,fontWeight:600,color:"var(--text-sec)",textTransform:"uppercase",letterSpacing:"0.07em"}}>📲 Install App</p>
+        {deferredPrompt?(
+          <div>
+            <p style={{fontSize:13,color:"var(--text-sec)",margin:"0 0 10px"}}>Install FinTrack as a standalone app on your device.</p>
+            <button onClick={async ()=>{deferredPrompt.prompt();const r=await deferredPrompt.userChoice;if(r.outcome==="accepted")showToast("✅ App installed!");setDeferredPrompt(null);}} style={{padding:"10px 20px",borderRadius:8,background:"#312e81",color:"#fff",border:"none",cursor:"pointer",fontSize:13,fontWeight:600}}>Install App</button>
+          </div>
+        ):(
+          <div>
+            <p style={{fontSize:13,color:"var(--text-sec)",margin:"0 0 6px"}}>Serve this folder with a local HTTP server (e.g. <code>python -m http.server</code>) and open the URL in Chrome — the install prompt will appear at the top of the page or in the browser menu (⋮).</p>
+            <p style={{fontSize:12,color:"var(--text-mut)",margin:0}}>On <code>file://</code> the install option is not available. The APK build handles this natively.</p>
+          </div>
+        )}
+      </Card>
     </div>
   );
 
